@@ -1,0 +1,34 @@
+{
+  "name": "ai-re-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "predev": "npm run build -w @ai-re-agent/contracts && npm run db:seed",
+    "dev": "concurrently --kill-others --names api,web --prefix-colors cyan,green \"npm run dev -w @ai-re-agent/server\" \"npm run dev -w @ai-re-agent/web\"",
+    "dev:server": "npm run dev -w @ai-re-agent/server",
+    "dev:web": "npm run dev -w @ai-re-agent/web",
+    "db:init": "npm run db:init -w @ai-re-agent/server",
+    "db:seed": "npm run db:seed -w @ai-re-agent/server",
+    "worker": "npm run db:seed",
+    "build": "npm run build -w @ai-re-agent/contracts && npm run build -w @ai-re-agent/server && npm run build -w @ai-re-agent/web",
+    "start": "concurrently --kill-others --names api,web \"npm run start -w @ai-re-agent/server\" \"npm run preview -w @ai-re-agent/web\"",
+    "test": "npm run test -w @ai-re-agent/server",
+    "pretest:e2e": "npm run build",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "concurrently": "^9.2.1",
+    "typescript": "~5.9.3"
+  }
+}
