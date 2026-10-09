@@ -1,119 +1,597 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { Listing, ListingsResponse } from '@ai-re-agent/contracts';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  Feature,
+  Listing,
+  ListingsResponse,
+} from "@ai-re-agent/contracts";
+import { featureInfo, searchable } from "./lib";
+import { Icon } from "./components/Icon";
+import { ListingCard } from "./components/ListingCard";
+import { ListingDetail } from "./components/ListingDetail";
+import { Modal } from "./components/Modal";
+import { PropertyMap } from "./components/PropertyMap";
 
-const money = (value: number | null) => value === null ? 'Price unavailable' : new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
-const textKey = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('el-GR');
-type View = 'eligible' | 'excluded' | 'all';
-
-function HomeMark() {
-  return <svg width="23" height="23" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3V10Z" stroke="currentColor" strokeWidth="1.5" /><path d="M9 20v-8h6v8" stroke="currentColor" strokeWidth="1.5" /></svg>;
+type Page = "explore" | "saved";
+type Status = "eligible" | "needs-checking" | "excluded";
+type MobileView = "split" | "list" | "map";
+const savedKey = "estia:saved:v1";
+function initialSaved(): string[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(savedKey) || "[]");
+    return Array.isArray(value)
+      ? value.filter((id): id is string => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
 }
-
-function ListingCard({ listing, rank }: { listing: Listing; rank: number }) {
-  return <article className={`listing-card ${listing.eligible ? '' : 'excluded-card'}`}>
-    <div className="card-top">
-      <div className="property-heading">
-        <div className="eyebrow"><span className="rank">#{String(rank).padStart(2, '0')}</span><span lang="el">{listing.neighborhood}</span><span className="dot">/</span><span lang="el">{listing.city}</span></div>
-        <h3>{listing.title}</h3>
-        <p className="address" lang="el">{listing.address ?? 'Address not provided'}{listing.floor !== null ? ` · Floor ${listing.floor}` : ''}</p>
-      </div>
-      <div className={`score ${listing.eligible ? '' : 'score-excluded'}`} aria-label={listing.eligible ? `Score ${listing.score} out of 100` : 'Excluded from scoring'}>
-        <strong>{listing.score?.toFixed(1) ?? '—'}</strong><span>{listing.eligible ? 'OUT OF 100' : 'EXCLUDED'}</span>
-      </div>
-    </div>
-    <div className="property-facts">
-      <div className="price">{money(listing.priceEur)}{listing.transaction === 'rent' && <small> / month</small>}<span>{listing.pricePerSqm === null ? 'Price per m² unavailable' : `${money(listing.pricePerSqm)} / m²`}</span></div>
-      <div><strong>{listing.areaSqm ?? '—'} <small>m²</small></strong><span>Floor area</span></div>
-      <div><strong>{listing.bedrooms ?? '—'}</strong><span>Bedrooms</span></div>
-      <div className="condition"><strong>{listing.condition.replace('-', ' ')}</strong><span>{listing.metroDistanceM === null ? 'Metro distance unknown' : `${listing.metroDistanceM} m to metro`}</span></div>
-    </div>
-    {!listing.eligible && <div className="filter-failures"><strong>Outside this search</strong><ul>{listing.filterReasons.map(reason => <li key={reason}>{reason}</li>)}</ul></div>}
-    {listing.eligible && <details className="score-details">
-      <summary><span><span className="detail-symbol" aria-hidden="true">＋</span> Why this score</span><span className="muted">5 fixed factors</span></summary>
-      <div className="score-reasons">
-        {listing.reasons.map(reason => <div className="reason" key={reason.criterion}>
-          <div className="reason-label"><strong>{reason.label}</strong><span>{reason.points.toFixed(2)} <span className="muted">/ {reason.maxPoints}</span></span></div>
-          <div className="bar" aria-hidden="true"><span style={{ width: `${100 * reason.points / reason.maxPoints}%` }} /></div>
-          <p>{reason.reason}</p>
-        </div>)}
-      </div>
-    </details>}
-    <div className="sources"><span>{listing.sources.length > 1 ? `${listing.sources.length} sources · duplicates merged` : '1 source'}</span>
-      <div>{listing.sources.map(source => <a key={`${source.sourceId}/${source.externalId}`} href={source.url} target="_blank" rel="noreferrer" title={source.url}>{source.sourceName}<span aria-hidden="true"> ↗</span><span className="source-url">{source.url}</span></a>)}</div>
-    </div>
-  </article>;
-}
-
 export function App() {
   const [data, setData] = useState<ListingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
-  const [view, setView] = useState<View>('eligible');
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState('score');
+  const [page, setPage] = useState<Page>("explore");
+  const [status, setStatus] = useState<Status>("eligible");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("score");
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [saved, setSaved] = useState(initialSaved);
+  const [storageError, setStorageError] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [panel, setPanel] = useState<"filters" | "brief" | null>(null);
+  const [mobileView, setMobileView] = useState<MobileView>("split");
 
   useEffect(() => {
     const controller = new AbortController();
-    let active = true;
-    const timeout = window.setTimeout(() => controller.abort(), 10_000);
+    let cancelled = false;
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
     setLoading(true);
-    setError(null);
-    async function load() {
-      try {
-        const response = await fetch('/api/listings?status=all', { signal: controller.signal, cache: 'no-store' });
-        if (!response.ok) throw new Error(`API returned ${response.status}`);
-        const result = await response.json() as ListingsResponse;
-        if (active) setData(result);
-      } catch {
-        if (active) setError('We couldn’t load the shortlist. Check that the local server is running, then try again.');
-      } finally {
-        window.clearTimeout(timeout);
-        if (active) setLoading(false);
-      }
-    }
-    void load();
-    return () => { active = false; controller.abort(); window.clearTimeout(timeout); };
+    setError("");
+    fetch("/api/listings?status=all", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unable to load");
+        const result = (await response.json()) as ListingsResponse;
+        if (
+          !Array.isArray(result.listings) ||
+          result.policy?.version !== "greece-land-v2"
+        )
+          throw new Error("Run the current sample worker");
+        if (!cancelled) setData(result);
+      })
+      .catch(() => {
+        if (!cancelled)
+          setError(
+            "We couldn’t load your places. Check that the local server is running and the sample worker has completed.",
+          );
+      })
+      .finally(() => {
+        clearTimeout(timeout);
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, [revision]);
 
-  const listings = useMemo(() => {
-    const search = textKey(query.trim());
-    return (data?.listings ?? [])
-      .filter(listing => view === 'all' || (view === 'eligible' ? listing.eligible : !listing.eligible))
-      .filter(listing => textKey(`${listing.title} ${listing.neighborhood} ${listing.city} ${listing.address ?? ''}`).includes(search))
-      .sort((a, b) => sort === 'price' ? (a.priceEur ?? Infinity) - (b.priceEur ?? Infinity) : (b.score ?? -1) - (a.score ?? -1));
-  }, [data, view, query, sort]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(savedKey, JSON.stringify(saved));
+      setStorageError(false);
+    } catch {
+      setStorageError(true);
+    }
+  }, [saved]);
 
-  return <>
-    <header className="topbar"><a className="brand" href="/" aria-label="Estía home"><span className="brand-icon"><HomeMark /></span>estía<span className="brand-caption">PROPERTY INTELLIGENCE</span></a><span className="local-status"><i />Local workspace</span></header>
-    <main>
-      <section className="hero"><div><p className="eyebrow hero-kicker">ATHENS, GREECE <span> / </span> YOUR NEXT CHAPTER</p><h1>A place worth<br /><em>looking into.</em></h1><p className="intro">A considered shortlist of Athens homes.<br />Every match filtered. Every score explained.</p></div>
-        <div className="hero-note"><span className="note-number">01</span><div className="line-art" aria-hidden="true"><HomeMark /></div><span>THE ATHENS EDIT</span><p>A clearer view.<br />A place to begin.</p><small>37.9838° N &nbsp; 23.7275° E</small></div>
-      </section>
-      <div className="sample-banner"><span className="sample-tag">SAMPLE DATA</span><span>Fictional homes, real workflow. Source links are demonstration URLs.</span></div>
-      <section className="stats" aria-label="Import summary">
-        <div><span>Source records</span><strong>{data?.summary.observations ?? '—'}</strong><small>Across two sample adapters</small></div>
-        <div><span>Unique properties</span><strong>{data?.summary.properties ?? '—'}</strong><small>{data ? `${data.summary.duplicates} duplicate records merged` : 'Deduplicated before scoring'}</small></div>
-        <div className="stat-match"><span>Within your criteria</span><strong>{data?.summary.eligible ?? '—'}<i>↗</i></strong><small>Ranked by a fixed 100-point score</small></div>
-        <div><span>Filtered out</span><strong>{data?.summary.excluded ?? '—'}</strong><small>With a reason for every exclusion</small></div>
-      </section>
-      <div className="workspace">
-        <aside>
-          <div className="sidebar-section"><p className="eyebrow">THE SEARCH BRIEF</p><h2>Athens apartments</h2><p className="muted brief-copy">A focused first search, with a fixed set of must-haves.</p><ul className="filter-list">{(data?.policy.filters ?? ['Athens only', 'Active apartments for sale', 'Up to €250,000', 'At least 50 m²', 'At least 1 bedroom']).map(filter => <li key={filter}><span aria-hidden="true">✓</span>{filter}</li>)}</ul><span className="fixed-label">FIXED CRITERIA · V1</span></div>
-          <div className="sidebar-section weights"><p className="eyebrow">HOW WE RANK</p><h2>Nothing behind the curtain.</h2><p className="muted brief-copy">Five fixed factors. A maximum of 100 points. Open any match to see the math.</p>{data?.policy.weights.map(weight => <div className="weight" key={weight.label}><span>{weight.label}</span><strong>{weight.points}<small> pts</small></strong></div>)}<p className="scoring-footnote">Unknown condition or metro distance earns zero points for that factor.</p></div>
-          <div className="import-note"><span className="status-dot" />{data?.summary.lastImportedAt ? <>Last import<br /><strong>{new Date(data.summary.lastImportedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</strong></> : 'No import yet'}</div>
-        </aside>
-        <section className="results" aria-busy={loading}>
-          <div className="results-heading"><div><p className="eyebrow">YOUR SHORTLIST</p><h2>{view === 'excluded' ? 'Outside the brief' : view === 'all' ? 'The full picture' : 'Find your starting point'}</h2></div><button className="refresh" onClick={() => setRevision(value => value + 1)} disabled={loading}><span aria-hidden="true">↻</span> {loading ? 'Loading…' : 'Refresh'}</button></div>
-          <div className="tabs" role="group" aria-label="Listing status">{([['eligible', 'Matches', data?.summary.eligible], ['excluded', 'Excluded', data?.summary.excluded], ['all', 'All properties', data?.summary.properties]] as const).map(([value, label, count]) => <button key={value} aria-pressed={view === value} className={view === value ? 'active' : ''} onClick={() => setView(value)}>{label}<span>{count ?? '—'}</span></button>)}</div>
-          <div className="toolbar"><label className="search"><span aria-hidden="true">⌕</span><input aria-label="Search properties" placeholder="Search a neighborhood or property" value={query} onChange={event => setQuery(event.target.value)} /></label><label className="sort">Sort by<select aria-label="Sort listings" value={sort} onChange={event => setSort(event.target.value)}><option value="score">Highest score</option><option value="price">Lowest price</option></select></label></div>
-          {error && <div className="error" role="alert"><p>{error}</p><button onClick={() => setRevision(value => value + 1)}>Try again</button>{data && <small>Showing the last successfully loaded results below.</small>}</div>}
-          <p className="result-count" aria-live="polite">{loading ? 'Loading properties…' : `${listings.length} ${listings.length === 1 ? 'property' : 'properties'}`}{!loading && view === 'eligible' && <span> · All must-haves met</span>}</p>
-          {!loading && !error && listings.length === 0 && <div className="empty"><HomeMark /><h3>{data?.summary.properties === 0 ? 'Your shortlist starts here.' : 'No properties in this view.'}</h3><p>{data?.summary.properties === 0 ? 'Run the sample import with npm run db:seed, then refresh.' : 'Try another search or choose a different tab.'}</p></div>}
-          <div className="listing-stack">{listings.map((listing, index) => <ListingCard key={listing.id} listing={listing} rank={index + 1} />)}</div>
-        </section>
+  const toggleSave = (listing: Listing) => {
+    const exists = saved.includes(listing.id);
+    setSaved((current) =>
+      exists
+        ? current.filter((id) => id !== listing.id)
+        : [...current, listing.id],
+    );
+    setAnnouncement(
+      exists
+        ? "Removed from your saved places."
+        : "Added to your saved places.",
+    );
+  };
+  const filtered = useMemo(() => {
+    const needle = searchable(query.trim());
+    return (data?.listings ?? [])
+      .filter(
+        (p) =>
+          (page === "saved" ? saved.includes(p.id) : p.status === status) &&
+          (!needle ||
+            searchable(
+              [p.title, p.city, p.neighborhood, p.region].join(" "),
+            ).includes(needle)) &&
+          features.every((key) => p.features[key] === true),
+      )
+      .sort((a, b) =>
+        sort === "price"
+          ? (a.priceEur ?? Infinity) - (b.priceEur ?? Infinity)
+          : sort === "land"
+            ? (b.landSqm ?? -1) - (a.landSqm ?? -1)
+            : (b.score ?? -1) - (a.score ?? -1) ||
+              (a.priceEur ?? Infinity) - (b.priceEur ?? Infinity),
+      );
+  }, [data, query, page, status, features, saved, sort]);
+  const selected = filtered.find((p) => p.id === selectedId) ?? null;
+  const detail = data?.listings.find((p) => p.id === detailId) ?? null;
+  const savedCount =
+    data?.listings.filter((p) => saved.includes(p.id)).length ?? 0;
+  const selectOnMap = useCallback((id: string) => setSelectedId(id), []);
+  const openListing = (listing: Listing) => {
+    setSelectedId(listing.id);
+    setDetailId(listing.id);
+  };
+  const clearFilters = () => {
+    setQuery("");
+    setFeatures([]);
+  };
+  const tabs: { value: Status; label: string; count: number }[] = [
+    { value: "eligible", label: "Matches", count: data?.summary.eligible ?? 0 },
+    {
+      value: "needs-checking",
+      label: "Needs checking",
+      count: data?.summary.needsChecking ?? 0,
+    },
+    {
+      value: "excluded",
+      label: "Outside brief",
+      count: data?.summary.excluded ?? 0,
+    },
+  ];
+  const navigation = (
+    <>
+      <button
+        className={page === "explore" ? "nav-active" : ""}
+        onClick={() => setPage("explore")}
+        aria-current={page === "explore" ? "page" : undefined}
+      >
+        <Icon name="compass" size={23} />
+        <span>Explore</span>
+      </button>
+      <button
+        className={page === "saved" ? "nav-active" : ""}
+        onClick={() => setPage("saved")}
+        aria-current={page === "saved" ? "page" : undefined}
+      >
+        <span className="nav-icon">
+          <Icon name="heart" size={23} />
+          {savedCount > 0 && <b>{savedCount}</b>}
+        </span>
+        <span>Saved</span>
+      </button>
+      <button onClick={() => setPanel("brief")}>
+        <Icon name="brief" size={23} />
+        <span>Your brief</span>
+      </button>
+    </>
+  );
+
+  return (
+    <div className={"app-shell view-" + mobileView}>
+      <aside className="rail">
+        <a className="brand-mark" href="/" aria-label="Estía home">
+          <Icon name="home" size={29} />
+        </a>
+        <nav aria-label="Main navigation">{navigation}</nav>
+        <span className="rail-bottom">
+          Made for
+          <br />a new chapter.
+        </span>
+      </aside>
+      <div className="app-main">
+        <header className="app-header">
+          <div className="mobile-brand">
+            <Icon name="home" size={22} />
+            <span>
+              estía<span className="brand-period">.</span>
+            </span>
+          </div>
+          <div className="header-context">
+            <span className="wordmark">
+              estía<span className="brand-period">.</span>
+            </span>
+            <span className="header-divider" />
+            <span>A little space. A new beginning.</span>
+          </div>
+          <div className="demo-pill">
+            <span />
+            Sample collection
+          </div>
+          <div className="search-row">
+            <label className="search-box">
+              <Icon name="search" size={20} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Anywhere in Greece"
+                aria-label="Search places"
+              />
+              {query ? (
+                <button onClick={() => setQuery("")} aria-label="Clear search">
+                  <Icon name="close" size={17} />
+                </button>
+              ) : (
+                <span className="search-scope">Greece</span>
+              )}
+            </label>
+            <button
+              className={
+                "filter-button" + (features.length ? " has-filters" : "")
+              }
+              onClick={() => setPanel("filters")}
+              aria-label="Filter by extras"
+            >
+              <Icon name="filter" />
+              <span>
+                Filters{features.length ? " · " + features.length : ""}
+              </span>
+            </button>
+          </div>
+        </header>
+
+        <main className="explore-workspace">
+          <div className="results-panel">
+            <button
+              className="sheet-handle"
+              aria-label={
+                mobileView === "list"
+                  ? "Show map and list"
+                  : "Expand listing sheet"
+              }
+              onClick={() =>
+                setMobileView((current) =>
+                  current === "list" ? "split" : "list",
+                )
+              }
+            >
+              <span />
+            </button>
+            <div className="results-heading">
+              <div>
+                <div className="eyebrow">
+                  {page === "saved"
+                    ? "YOUR PERSONAL SHORTLIST"
+                    : "A PLACE TO PUT DOWN ROOTS"}
+                </div>
+                <h1>
+                  {page === "saved"
+                    ? "Keep the possibilities."
+                    : "Find your somewhere."}
+                </h1>
+                <p>
+                  {page === "saved"
+                    ? "The places you’d like to come back to."
+                    : "Good bones, open space, a little Greek sunshine."}
+                </p>
+              </div>
+              <button
+                className="icon-button refresh-button"
+                aria-label="Refresh listings"
+                title="Refresh listings"
+                disabled={loading}
+                onClick={() => setRevision((n) => n + 1)}
+              >
+                <Icon
+                  name="refresh"
+                  size={18}
+                  className={loading ? "spinning" : ""}
+                />
+              </button>
+            </div>
+            <div className="brief-chips">
+              <button onClick={() => setPanel("brief")}>Up to €300k</button>
+              <button onClick={() => setPanel("brief")}>1,000+ m² land</button>
+              <button onClick={() => setPanel("brief")}>
+                <Icon name="check" size={13} />
+                Paved access
+              </button>
+            </div>
+            {page === "explore" && (
+              <div className="status-tabs" aria-label="Listing status">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.value}
+                    className={status === tab.value ? "active" : ""}
+                    aria-pressed={status === tab.value}
+                    onClick={() => setStatus(tab.value)}
+                  >
+                    {tab.label}
+                    <span>{tab.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {features.length > 0 && (
+              <div className="active-filters">
+                {features.map((key) => (
+                  <button
+                    key={key}
+                    onClick={() =>
+                      setFeatures((current) => current.filter((f) => f !== key))
+                    }
+                  >
+                    {featureInfo.find((f) => f.key === key)?.label}
+                    <Icon name="close" size={12} />
+                  </button>
+                ))}
+                <button onClick={() => setFeatures([])}>Clear</button>
+              </div>
+            )}
+            <div className="results-toolbar">
+              <span aria-live="polite">
+                <b>{filtered.length}</b>{" "}
+                {page === "saved" ? "saved places" : "places to explore"}
+              </span>
+              <label>
+                Sort by{" "}
+                <select
+                  aria-label="Sort listings"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                >
+                  <option value="score">Best fit</option>
+                  <option value="price">Lowest price</option>
+                  <option value="land">Most land</option>
+                </select>
+              </label>
+            </div>
+            <div className="results-scroll">
+              {error && (
+                <div className="empty-state" role="alert">
+                  <Icon name="info" size={28} />
+                  <h2>A small detour.</h2>
+                  <p>{error}</p>
+                  <button
+                    className="primary-button"
+                    onClick={() => setRevision((n) => n + 1)}
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+              {loading && !data && (
+                <div className="skeleton-grid" aria-label="Loading listings">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div className="skeleton-card" key={i}>
+                      <div />
+                      <span />
+                      <span />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!loading && !error && filtered.length === 0 && (
+                <div className="empty-state">
+                  <Icon
+                    name={page === "saved" ? "heart" : "search"}
+                    size={32}
+                  />
+                  <h2>
+                    {page === "saved" && !savedCount
+                      ? "A place for your favourites."
+                      : "Nothing here just yet."}
+                  </h2>
+                  <p>
+                    {page === "saved" && !savedCount
+                      ? "Tap the heart on any place to keep it in your shortlist."
+                      : "Try another location or fewer extras."}
+                  </p>
+                  {query || features.length ? (
+                    <button className="primary-button" onClick={clearFilters}>
+                      Clear search and extras
+                    </button>
+                  ) : page === "saved" ? (
+                    <button
+                      className="primary-button"
+                      onClick={() => setPage("explore")}
+                    >
+                      Explore places
+                    </button>
+                  ) : null}
+                </div>
+              )}
+              {!error && (
+                <div className="listing-grid">
+                  {filtered.map((p) => (
+                    <ListingCard
+                      key={p.id}
+                      listing={p}
+                      selected={selected?.id === p.id}
+                      saved={saved.includes(p.id)}
+                      onSave={() => toggleSave(p)}
+                      onOpen={() => openListing(p)}
+                      onMap={() => {
+                        setSelectedId(p.id);
+                        setMobileView("map");
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              {data && !error && filtered.length > 0 && (
+                <footer className="collection-note">
+                  <Icon name="info" size={15} />
+                  <p>
+                    Fictional listings, illustrative photos.
+                    <br />
+                    {data.summary.observations} observations ·{" "}
+                    {data.summary.duplicates} duplicates combined.
+                    <br />
+                    <span>Wildfire exposure is not assessed.</span>
+                  </p>
+                </footer>
+              )}
+              {storageError && (
+                <p className="storage-note" role="status">
+                  Your browser cannot store saved places. They will last for
+                  this visit only.
+                </p>
+              )}
+            </div>
+          </div>
+          <PropertyMap
+            listings={filtered}
+            selected={selected}
+            onSelect={selectOnMap}
+            onOpen={() => {
+              if (selected) setDetailId(selected.id);
+            }}
+          />
+          <div className="mobile-view-switch" aria-label="Layout">
+            <button
+              className={mobileView !== "map" ? "active" : ""}
+              onClick={() => setMobileView("list")}
+              aria-label="Show listing view"
+            >
+              <Icon name="list" size={17} />
+              List
+            </button>
+            <button
+              className={mobileView === "map" ? "active" : ""}
+              onClick={() => setMobileView("map")}
+              aria-label="Show map view"
+            >
+              <Icon name="map" size={17} />
+              Map
+            </button>
+          </div>
+        </main>
+        <nav className="mobile-nav" aria-label="Mobile navigation">
+          {navigation}
+        </nav>
       </div>
-    </main>
-    <footer><span className="footer-brand">estía</span><span>A little clarity, closer to home.</span><span>LOCAL DEMO · {data?.policy.version ?? 'athens-sale-v1'}</span></footer>
-  </>;
+      <span className="sr-only" role="status">
+        {announcement}
+      </span>
+      {detail && (
+        <ListingDetail
+          listing={detail}
+          saved={saved.includes(detail.id)}
+          onSave={() => toggleSave(detail)}
+          onClose={() => setDetailId(null)}
+        />
+      )}
+      {panel === "filters" && (
+        <Modal title="A few lovely extras" onClose={() => setPanel(null)}>
+          <div className="panel-content">
+            <p className="muted">
+              Narrow the view to places that report these features. Select more
+              than one to require all of them.
+            </p>
+            <div className="filter-options">
+              {featureInfo.map((f) => (
+                <label key={f.key}>
+                  <Icon name={f.icon} />
+                  <span>{f.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={features.includes(f.key)}
+                    onChange={() =>
+                      setFeatures((current) =>
+                        current.includes(f.key)
+                          ? current.filter((key) => key !== f.key)
+                          : [...current, f.key],
+                      )
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <p className="small-note">
+              These filters only narrow the view. Your fixed scoring priorities
+              stay the same.
+            </p>
+          </div>
+          <footer className="modal-actions">
+            <button className="text-button" onClick={() => setFeatures([])}>
+              Clear extras
+            </button>
+            <button className="primary-button" onClick={() => setPanel(null)}>
+              Show {filtered.length} places
+              <Icon name="arrow" size={17} />
+            </button>
+          </footer>
+        </Modal>
+      )}
+      {panel === "brief" && (
+        <Modal title="Your kind of place" onClose={() => setPanel(null)}>
+          <div className="panel-content brief-content">
+            <div className="brief-intro">
+              <Icon name="leaf" size={32} />
+              <p>
+                Somewhere in Greece.
+                <br />
+                <strong>Room to live, and room to grow.</strong>
+              </p>
+            </div>
+            <h3>The essentials</h3>
+            <ul className="brief-list">
+              {(
+                data?.policy.filters ?? [
+                  "For sale in Greece",
+                  "Up to €300,000",
+                  "At least 1,000 m² of land",
+                  "Paved access to the property",
+                ]
+              ).map((f) => (
+                <li key={f}>
+                  <Icon name="check" size={17} />
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <p className="small-note">
+              An unknown price, plot size or access road goes into “Needs
+              checking”. Listing claims are not independent verification.
+            </p>
+            <h3>What matters most</h3>
+            <p>
+              Good infrastructure and building permits come first. Around{" "}
+              <strong>100 m² built is ideal</strong>, with town roughly a
+              10-minute drive away. Smaller homes, renovation projects and land
+              can still be considered.
+            </p>
+            <h3>Things to fall for</h3>
+            <p>
+              A barn or stable, established trees, a working well and solar
+              panels. A second unit, sea view or pool would be lovely too.
+              Mainland or island — both are welcome.
+            </p>
+            <h3>What needs a closer look</h3>
+            <p>
+              Simple, understated style is a personal judgement. Wildfire
+              exposure needs location-specific research; it is not assessed or
+              included in the score. A high score does not establish safety or
+              legal suitability.
+            </p>
+            <h3>How the fit score works</h3>
+            <div className="weight-list">
+              {data?.policy.weights.map((w) => (
+                <div key={w.label}>
+                  <span>{w.label}</span>
+                  <b>{w.points} pts</b>
+                </div>
+              ))}
+            </div>
+            <p className="small-note">
+              Fixed priorities, visible reasons. Open any place to see exactly
+              where its points come from. Unknown information earns no points.
+            </p>
+            <p className="small-note">
+              Saved places stay in this browser. The collection is currently a
+              demonstration with fictional listings and illustrative photos.
+            </p>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
 }

@@ -1,10 +1,64 @@
+# Dependencies and generated output
 node_modules/
 dist/
+coverage/
 *.tsbuildinfo
+
+# Local environment values; commit only empty/sanitized templates
 .env
+.env.*
+*.env
+*.env.*
+!.env.example
+!.env.*.example
+!*.env.example
+
+# Credentials, signing material, and browser authentication state
+.secrets/
+secrets/
+credentials/
+.auth/
+playwright/.auth/
+.aws/
+.codex/auth.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ecdsa
+id_ed25519
+.netrc
+.git-credentials
+.envrc
+credentials*.json
+client_secret*.json
+*service-account*.json
+*service_account*.json
+application_default_credentials.json
+storage-state*.json
+storageState*.json
+cookies*.json
+
+# Local property data, personal notes, and exports
+/server/data/
+private/
+personal/
 *.sqlite
-*.sqlite-shm
-*.sqlite-wal
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.dump
+*.local
+*.local.*
+
+# Logs and test/browser artifacts
+logs/
+*.log
 .test-data/
 playwright-report/
 test-results/

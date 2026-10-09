@@ -1,38 +1,183 @@
-import type { Evaluation, ListingsResponse, PropertyDetails, ScoreReason } from '@ai-re-agent/contracts';
+import type {
+  Evaluation,
+  Feature,
+  PropertyDetails,
+  ScoreReason,
+} from "@ai-re-agent/contracts";
 
-export const POLICY: ListingsResponse['policy'] = {
-  version: 'athens-sale-v1',
-  filters: ['Athens only', 'Active apartments for sale', 'Up to €250,000', 'At least 50 m²', 'At least 1 bedroom'],
+export const POLICY = {
+  version: "greece-land-v2",
+  filters: [
+    "For sale in Greece",
+    "Up to €300,000",
+    "At least 1,000 m² of land",
+    "Paved access to the property",
+  ],
   weights: [
-    { label: 'Budget headroom', points: 30 }, { label: 'Price per m²', points: 30 },
-    { label: 'Space', points: 20 }, { label: 'Condition', points: 10 }, { label: 'Metro proximity', points: 10 },
+    { label: "Infrastructure", points: 25 },
+    { label: "Building permits", points: 20 },
+    { label: "Useful extras", points: 20 },
+    { label: "Close to town", points: 15 },
+    { label: "Around 100 m² built", points: 10 },
+    { label: "Budget headroom", points: 10 },
   ],
 };
-const clamp = (n: number): number => Math.max(0, Math.min(1, n));
-const round = (n: number): number => Math.round(n * 100) / 100;
-const euros = (n: number): string => `€${Math.round(n).toLocaleString('en-GB')}`;
+const clamp = (n: number) => Math.max(0, Math.min(1, n));
+const round = (n: number) => Math.round(n * 100) / 100;
+const known = (n: number | null): n is number =>
+  n !== null && Number.isFinite(n) && n >= 0;
+const extras: [Feature, string, number][] = [
+  ["barn", "barn / stable", 4],
+  ["trees", "established trees", 4],
+  ["well", "working well", 4],
+  ["solar", "solar panels", 4],
+  ["seaView", "sea view", 2],
+  ["secondUnit", "second unit", 1],
+  ["pool", "pool", 1],
+];
 
-export function evaluate(property: PropertyDetails): Evaluation {
+export function evaluate(p: PropertyDetails): Evaluation {
   const filterReasons: string[] = [];
-  if (property.city !== 'Αθήνα') filterReasons.push('Outside Athens.');
-  if (!property.active) filterReasons.push('Listing is inactive.');
-  if (property.type !== 'apartment') filterReasons.push('Property is not an apartment.');
-  if (property.transaction !== 'sale') filterReasons.push('Listing is not for sale.');
-  if (property.priceEur === null || !Number.isFinite(property.priceEur) || property.priceEur <= 0) filterReasons.push('A valid asking price is required.');
-  else if (property.priceEur > 250_000) filterReasons.push(`Asking price ${euros(property.priceEur)} exceeds €250,000.`);
-  if (property.areaSqm === null || !Number.isFinite(property.areaSqm) || property.areaSqm < 50) filterReasons.push('At least 50 m² of floor area is required.');
-  if (property.bedrooms === null || !Number.isInteger(property.bedrooms) || property.bedrooms < 1) filterReasons.push('At least 1 bedroom is required.');
-  if (filterReasons.length) return { eligible: false, score: null, filterReasons, reasons: [] };
-  const price = property.priceEur!;
-  const area = property.areaSqm!;
-  const perSqm = price / area;
-  const conditionPoints = { new: 10, renovated: 10, good: 7, 'needs-renovation': 2, unknown: 0 }[property.condition];
-  const reasons: ScoreReason[] = [
-    { criterion: 'budget', label: 'Budget headroom', points: round(30 * clamp((250_000 - price) / 150_000)), maxPoints: 30, reason: `${euros(price)} asking price; ${euros(250_000 - price)} below the cap. Full points at €100,000 or less; zero at €250,000.` },
-    { criterion: 'value', label: 'Price per m²', points: round(30 * clamp((4_000 - perSqm) / 2_500)), maxPoints: 30, reason: `${euros(perSqm)}/m². Full points at €1,500/m² or less; zero at €4,000/m² or more.` },
-    { criterion: 'space', label: 'Space', points: round(20 * clamp((area - 50) / 70)), maxPoints: 20, reason: `${area} m². Points increase linearly from zero at 50 m² to full points at 120 m².` },
-    { criterion: 'condition', label: 'Condition', points: conditionPoints, maxPoints: 10, reason: property.condition === 'unknown' ? 'Condition is unknown; no points awarded.' : `${property.condition.replace('-', ' ')}: new/renovated = 10, good = 7, needs renovation = 2 points.` },
-    { criterion: 'metro', label: 'Metro proximity', points: property.metroDistanceM === null ? 0 : round(10 * clamp((1_500 - property.metroDistanceM) / 1_500)), maxPoints: 10, reason: property.metroDistanceM === null ? 'Metro distance is unknown; no points awarded.' : `${property.metroDistanceM} m from a metro station. Full points at 0 m, falling linearly to zero at 1,500 m.` },
+  const missingDetails: string[] = [];
+  if (!p.active) filterReasons.push("This listing is no longer active.");
+  if (p.transaction !== "sale")
+    filterReasons.push("This property is not for sale.");
+  if (p.countryCode !== "GR")
+    filterReasons.push("The property is outside Greece.");
+  if (!known(p.priceEur) || p.priceEur === 0)
+    missingDetails.push("Confirm the asking price.");
+  else if (p.priceEur > 300_000)
+    filterReasons.push("The asking price exceeds €300,000.");
+  if (!known(p.landSqm))
+    missingDetails.push("Confirm the plot is at least 1,000 m².");
+  else if (p.landSqm < 1_000)
+    filterReasons.push("The plot is smaller than 1,000 m².");
+  if (p.road === "unpaved")
+    filterReasons.push("Access includes an unpaved road.");
+  else if (p.road !== "paved")
+    missingDetails.push("Confirm paved access all the way to the property.");
+  if (filterReasons.length)
+    return {
+      eligible: false,
+      status: "excluded",
+      score: null,
+      filterReasons,
+      missingDetails,
+      reasons: [],
+    };
+
+  const utilities: [boolean | null, string, number][] = [
+    [p.electricity, "electricity", 10],
+    [p.mainsWater, "mains water", 10],
+    [p.internet, "internet", 5],
   ];
-  return { eligible: true, score: round(reasons.reduce((sum, reason) => sum + reason.points, 0)), filterReasons: [], reasons };
+  const utilitiesText = utilities
+    .map(
+      ([value, label, points]) =>
+        label +
+        ": " +
+        (value === true
+          ? "reported (+" + points + ")"
+          : value === false
+            ? "not available (+0)"
+            : "unknown (+0)"),
+    )
+    .join("; ");
+  const extrasText = extras
+    .map(
+      ([key, label, points]) =>
+        label +
+        ": " +
+        (p.features[key] === true
+          ? "reported (+" + points + ")"
+          : p.features[key] === false
+            ? "not listed (+0)"
+            : "unknown (+0)"),
+    )
+    .join("; ");
+  const permitsPoints =
+    p.permits === "documents-listed" ? 20 : p.permits === "reported" ? 10 : 0;
+  const permitsText = {
+    "documents-listed":
+      "Permit documents are listed as available. They still need professional review.",
+    reported: "Permits are reported, but documents have not been supplied.",
+    "issues-reported":
+      "A permit issue is reported. Resolve it before progressing.",
+    unknown: "Permit information is unknown. No points awarded.",
+  }[p.permits];
+  const townKnown = known(p.townMinutes);
+  const areaKnown = known(p.areaSqm);
+  const reasons: ScoreReason[] = [
+    {
+      criterion: "infrastructure",
+      label: "Infrastructure",
+      maxPoints: 25,
+      points: utilities.reduce(
+        (sum, [value, , points]) => sum + (value === true ? points : 0),
+        0,
+      ),
+      reason:
+        utilitiesText + ". Connections and service quality need checking.",
+    },
+    {
+      criterion: "permits",
+      label: "Building permits",
+      maxPoints: 20,
+      points: permitsPoints,
+      reason: permitsText,
+    },
+    {
+      criterion: "extras",
+      label: "Useful extras",
+      maxPoints: 20,
+      points: extras.reduce(
+        (sum, [key, , points]) => sum + (p.features[key] === true ? points : 0),
+        0,
+      ),
+      reason: extrasText + ".",
+    },
+    {
+      criterion: "town",
+      label: "Close to town",
+      maxPoints: 15,
+      points: townKnown ? round(15 * clamp((30 - p.townMinutes!) / 20)) : 0,
+      reason: townKnown
+        ? p.townMinutes +
+          " minutes by car, reported by the source. Full points at 10 minutes or less, decreasing to zero at 30. Not a calculated route."
+        : "Driving time to town is unknown. No points awarded.",
+    },
+    {
+      criterion: "space",
+      label: "Around 100 m² built",
+      maxPoints: 10,
+      points: areaKnown
+        ? round(10 * clamp(1 - Math.abs(p.areaSqm! - 100) / 100))
+        : 0,
+      reason: areaKnown
+        ? p.areaSqm +
+          " m² built. Closest to 100 m² earns the most points; there is no minimum building size."
+        : "Built area is unknown. No points awarded; this is a preference, not an exclusion.",
+    },
+    {
+      criterion: "budget",
+      label: "Budget headroom",
+      maxPoints: 10,
+      points:
+        known(p.priceEur) && p.priceEur > 0
+          ? round(10 * clamp((300_000 - p.priceEur) / 200_000))
+          : 0,
+      reason:
+        known(p.priceEur) && p.priceEur > 0
+          ? "Lower asking prices leave more room in the €300,000 purchase budget. Full points at €100,000 or less. Purchase costs are not included."
+          : "The asking price is unknown. No points awarded.",
+    },
+  ];
+  return {
+    eligible: !missingDetails.length,
+    status: missingDetails.length ? "needs-checking" : "eligible",
+    score: round(reasons.reduce((sum, r) => sum + r.points, 0)),
+    filterReasons,
+    missingDetails,
+    reasons,
+  };
 }
