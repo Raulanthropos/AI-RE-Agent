@@ -298,7 +298,7 @@ test("discovery imports real leads independently of demo, deduplicates and retai
     const before = readListings(db, "all", "live");
     assert.equal(before.summary.properties, 1);
     assert.equal(before.listings[0]?.priceEur, 200000);
-    assert.equal(readListings(db, "all", "demo").summary.properties, 12);
+    assert.equal(readListings(db, "all", "demo").summary.properties, 10);
     const second = await discover(
       db,
       {
@@ -391,7 +391,7 @@ test("skipped pages retain their attempt date and do not claim a failed refresh"
   assert.equal(evaluate(foreign).status, "excluded");
 });
 
-test("catalog photos and area survive discovery, SQLite and REST while missing land stays unconfirmed", async (t) => {
+test("catalog photos and area persist for enrichment but missing-land records never enter REST results", async (t) => {
   const db = openDatabase(":memory:");
   const catalogHit = {
     url,
@@ -438,8 +438,10 @@ test("catalog photos and area survive discovery, SQLite and REST while missing l
   );
   const { listings, summary } = await response.json();
   assert.equal(summary.eligible, 0);
-  assert.equal(summary.needsChecking, 1);
-  const row = listings[0];
+  assert.equal(summary.needsChecking, 0);
+  assert.equal(summary.properties, 0);
+  assert.equal(listings.length, 0);
+  const row = readListings(db, "all", "live", "audit").listings[0]!;
   assert.equal(row.priceEur, 39000);
   assert.equal(row.areaSqm, 392);
   assert.equal(row.landSqm, null);
@@ -453,7 +455,8 @@ test("catalog photos and area survive discovery, SQLite and REST while missing l
   assert.equal(row.discovery.acquisition, "browser");
   assert.equal(row.sourcePhotos[0].url, catalogHit.catalog.imageUrls[0]);
   assert.equal(row.sourcePhotos[0].sourceUrl, identifyListing(url)!.url);
-  assert.equal(row.status, "needs-checking");
+  assert.equal(row.status, "excluded");
+  assert.equal(row.score, null);
 
   const full = extractListing({ target, hit, now, html: schema() })!;
   const next = extractListing({ target, hit: catalogHit, now })!;
@@ -484,7 +487,7 @@ test("REST serves separate collections and persisted search status without priva
   const demo = await fetch(
     base + "/api/listings?status=all&collection=demo",
   ).then((r) => r.json());
-  assert.equal(demo.summary.properties, 12);
+  assert.equal(demo.summary.properties, 10);
   assert.equal(
     (await fetch(base + "/api/listings?collection=invalid")).status,
     400,

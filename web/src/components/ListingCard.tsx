@@ -127,11 +127,7 @@ export function ListingCard({
         {listing.status === "excluded" ? (
           <p className="card-caution">{listing.filterReasons[0]}</p>
         ) : listing.status === "needs-checking" ? (
-          <p className="card-caution">
-            {listing.landSqm === null
-              ? "Land size missing · 1,000 m² minimum not confirmed."
-              : listing.missingDetails[0]}
-          </p>
+          <p className="card-caution">{listing.missingDetails[0]}</p>
         ) : (
           <div className="feature-tags">
             {features.map((f) => (

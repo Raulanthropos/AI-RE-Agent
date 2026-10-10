@@ -218,7 +218,7 @@ const properties: PropertyDetails[] = [
     photo: "coast",
     features: { ...base.features, seaView: true, solar: true },
     description:
-      "A modest island house with a reported sea view. The plot size is absent, so it needs checking before it can meet the essentials.",
+      "A modest island house with a reported sea view. The plot size is absent, so this record is excluded from browsing.",
   },
   {
     ...base,
@@ -246,7 +246,7 @@ const properties: PropertyDetails[] = [
     longitude: 22.858,
     photo: "village",
     description:
-      "Excluded from the shortlist because the plot is below 1,000 m².",
+      "Excluded from the shortlist because the plot is below 800 m².",
   },
   {
     ...base,

@@ -2,7 +2,7 @@
 
 A local TypeScript npm-workspaces monorepo for exploring Greek property listings. React + Vite talks to an Express REST API; only the server reads and writes SQLite. A daily worker discovers real listings through public web search and accessible pages, then deduplicates, filters and scores them. A separate sample importer provides fictional listings for demonstrations.
 
-The mobile-first UI takes its visual direction from [Mindtrip on Mobbin](https://mobbin.com/screens/4dcb8696-8b17-4d0f-b2b9-c5f90500633b): rounded photo cards, a connected map, a listing sheet, quiet colours and compact navigation. Internet listings and the fictional sample collection are kept separate. The app opens on **Matches**; incomplete leads remain in **Needs checking** with an **Unconfirmed** badge. Live details carry source evidence and uncertainty. Demo photographs are illustrative. Plot.gr cards and galleries display observed original photographs from public result cards or listing pages, with links to their source; other sources show a placeholder until supported.
+The mobile-first UI takes its visual direction from [Mindtrip on Mobbin](https://mobbin.com/screens/4dcb8696-8b17-4d0f-b2b9-c5f90500633b): rounded photo cards, a connected map, a listing sheet, quiet colours and compact navigation. Internet listings and the fictional sample collection are kept separate. The app opens on **Matches**. Every browsable listing must explicitly report at least **800 m² of land**; listings with unknown or smaller plots are hidden from every tab, saved view and map. Listings that meet this land requirement but have other incomplete checks remain in **Needs checking** with an **Unconfirmed** badge. Live details carry source evidence and uncertainty. Demo photographs are illustrative. Plot.gr cards and galleries display observed original photographs from public result cards or listing pages, with links to their source; other sources show a placeholder until supported.
 
 ## Run locally
 
@@ -55,7 +55,7 @@ Open **Internet listings** in the header. The worker searches every **24 hours w
 
 It combines public DuckDuckGo results with Plot.gr's public category result pages, with no account, paid API or LLM. Public portal pages are opened in ordinary Edge/Chromium automation with an isolated context: no user profile, saved login, stealth plugin or CAPTCHA solver. The browser renders the site's normal JavaScript; parsers select property fields from the resulting HTML. This page extraction is commonly called scraping. Robots rules, request pacing and host blocks still apply. Access can succeed for one page and fail on another, so this is best-effort discovery, not guaranteed market coverage.
 
-Real records pass through the existing hard filters and fixed scorer. A snippet or public results card alone cannot establish a match, even if it includes a photo and price. Missing price, land, road, permits and utilities stay unknown. Needs checking shows the missing essentials; its detailed score is provisional. Supported photographs load directly from the source's public image host, with source attribution and an unavailable-image fallback. Photo URLs are extracted from the actual page/card, never guessed. A named location can resolve to a clearly labelled town/village centre; exact property coordinates remain unknown unless supplied by the source.
+Real records pass through the existing hard filters and fixed scorer. Explicit land area of at least 800 m² is required before a listing can appear in the API or UI. Unknown land and plots under 800 m² are excluded internally; their source observations remain in SQLite for future enrichment. A snippet or public results card alone cannot establish a match, even if it includes a photo, price and sufficient land. Other missing facts stay unknown. Needs checking shows the remaining checks; its detailed score is provisional. Asking prices are preserved as advertised; there is no arbitrary minimum-price filter. Supported photographs load directly from the source's public image host, with source attribution and an unavailable-image fallback. Photo URLs are extracted from the actual page/card, never guessed. A named location can resolve to a clearly labelled town/village centre; exact property coordinates remain unknown unless supplied by the source.
 
 [Worker architecture, per-site support, limits and evidence rules](server/src/discovery/README.md) describe exactly what is implemented. Dedicated Plot.gr and Indomio parsers extract site-specific details; other portals use the metadata/snippet fallback. Source adapters can be improved independently.
 
@@ -63,7 +63,7 @@ A saved listing page can also enrich an existing record: `npm run import:page --
 
 ## What works
 
-- **15 observations → 12 properties:** 7 meet essentials, 2 need checking, 3 are excluded. Three duplicates retain both source URLs. Stable demo IDs update the earlier Athens apartment fixtures on the next import.
+- **15 sample observations → 12 stored properties:** three duplicates retain both source URLs. Only properties with explicitly stated land of at least 800 m² are returned for browsing. Stable demo IDs update the earlier Athens apartment fixtures on the next import.
 - Greece-wide search, accent-insensitive Greek search, sorting by score/price/land, optional feature filters, and explicit eligibility tabs.
 - Connected Leaflet price pins and cards; selecting a pin shows a preview, opening a card shows details, and “On map” highlights its location.
 - Mobile map/list controls, a listing sheet, native accessible dialogs and a desktop split view.
@@ -106,13 +106,13 @@ React + Leaflet ← JSON REST API ← Express (SQLite reader)
 
 `GET /api/health` returns `{ "status": "ok", "database": "sqlite" }`.
 
-`GET /api/listings?collection=live|demo|all&status=eligible|needs-checking|excluded|all` returns listings, collection-specific import summary and the fixed policy. Defaults are `live` and `eligible`. `GET /api/search/status` returns the latest search report and schedule. Results are sorted by descending score, ascending price, then stable ID. Invalid status values return 400; unknown endpoints return JSON 404; an empty database returns 200 with an empty array.
+`GET /api/listings?collection=live|demo|all&status=eligible|needs-checking|excluded|all` returns listings, a collection-specific summary and the fixed policy. Defaults are `live` and `eligible`. Every status, including `excluded` and `all`, applies the fixed visibility requirement of explicitly stated land ≥ 800 m². Records with unknown or smaller plots are retained internally but never returned for browsing, and API summary counts apply the same land requirement. Worker import reports include those internal records for auditing. `GET /api/search/status` returns the latest search report and schedule. Results are sorted by descending score, ascending price, then stable ID. Invalid status values return 400; unknown endpoints return JSON 404; an empty database returns 200 with an empty array.
 
 There is no web-triggered import endpoint. The UI refreshes after a new search completes; its refresh button reloads SQLite results without issuing external searches.
 
 ## Fixed criteria and scoring
 
-Essentials: active, for sale in Greece, positive asking price ≤ €300,000, land ≥ 1,000 m², and paved access. Known failures are excluded and have no score. Unknown price, land size or access surface produces **needs-checking**, a provisional score, and explicit missing details.
+Essentials: active, for sale in Greece, positive asking price ≤ €300,000, explicitly stated land ≥ 800 m², and paved access. The land minimum is a fixed code policy, not a configurable preference: missing land area or a plot below 800 m² excludes the record and removes it from all API results and user browsing. Built area never substitutes for land area. Other known failures are excluded and have no score. Once the land requirement is met, unknown price or access surface produces **needs-checking**, a provisional score, and explicit missing details. No additional minimum asking price is imposed.
 
 **Around 100 m² built is a preference, not a minimum.** Smaller houses, renovations, unknown built area and land without a house are not excluded on that basis. Permit and infrastructure evidence affects ranking and is displayed for review; it is not a claim of legal verification.
 
@@ -144,7 +144,7 @@ $env:PLAYWRIGHT_CHANNEL = 'msedge'
 npm.cmd run test:e2e
 ```
 
-Tests use ports **3101 and 4174**, and an isolated `.test-data/browser.sqlite`, so ordinary dev ports remain available. Browser tests block public OpenFreeMap and OSM requests, verify the fallback map, selection, scoring, unknown-land status, sources, saved places, filters, mobile views and API recovery. Screenshots go into ignored `test-results/`.
+Tests use ports **3101 and 4174**, and an isolated `.test-data/browser.sqlite`, so ordinary dev ports remain available. Browser tests block public OpenFreeMap and OSM requests, verify the fallback map, selection, scoring, exclusion of unknown or undersized plots, sources, saved places, filters, mobile views and API recovery. Screenshots go into ignored `test-results/`.
 
 ## Public repository and private data
 

@@ -35,7 +35,7 @@ test("sample import deduplicates 15 records into 12 properties and is idempotent
   const db = openDatabase(":memory:");
   t.after(() => db.close());
   const first = await runImport(db, adapters);
-  const before = readListings(db, "all");
+  const before = readListings(db, "all", "all", "audit");
   const second = await runImport(db, adapters);
   assert.equal(first.processed, 15);
   for (const result of [first, second]) {
@@ -43,9 +43,13 @@ test("sample import deduplicates 15 records into 12 properties and is idempotent
     assert.equal(result.properties, 12);
     assert.equal(result.duplicates, 3);
     assert.equal(result.eligible, 7);
-    assert.equal(result.excluded, 3);
+    assert.equal(result.needsChecking, 1);
+    assert.equal(result.excluded, 4);
   }
-  assert.deepEqual(readListings(db, "all").listings, before.listings);
+  assert.deepEqual(
+    readListings(db, "all", "all", "audit").listings,
+    before.listings,
+  );
   const kypseli = before.listings.find(
     (listing) => listing.neighborhood === "Kardamyli",
   )!;
@@ -85,20 +89,27 @@ test("sample import deduplicates 15 records into 12 properties and is idempotent
 
 test("a 392 m² building with unknown land is not a match, and building size is not a hard maximum", async () => {
   const base = normalizeObservation(await fixture());
-  const unconfirmed = evaluate({
+  const rejected = evaluate({
     ...base,
     areaSqm: 392,
     landSqm: null,
     priceEur: 39000,
   });
-  assert.equal(unconfirmed.eligible, false);
-  assert.equal(unconfirmed.status, "needs-checking");
-  assert.ok(unconfirmed.missingDetails.some((x) => x.includes("1,000")));
+  assert.equal(rejected.eligible, false);
+  assert.equal(rejected.status, "excluded");
+  assert.equal(rejected.score, null);
+  assert.ok(
+    rejected.filterReasons.some((x) => x.includes("Plot size is not stated")),
+  );
   assert.equal(
-    evaluate({ ...base, areaSqm: 392, landSqm: 999 }).status,
+    rejected.missingDetails.some((x) => x.includes("plot")),
+    false,
+  );
+  assert.equal(
+    evaluate({ ...base, areaSqm: 392, landSqm: 799.99 }).status,
     "excluded",
   );
-  const qualified = evaluate({ ...base, areaSqm: 392, landSqm: 1000 });
+  const qualified = evaluate({ ...base, areaSqm: 392, landSqm: 800 });
   assert.equal(qualified.status, "eligible");
   assert.equal(
     qualified.reasons.find((r) => r.criterion === "space")?.points,
@@ -112,7 +123,7 @@ test("hard filters accept Greece-wide land and do not turn optimal built area in
     evaluate({
       ...base,
       priceEur: 300_000,
-      landSqm: 1000,
+      landSqm: 800,
       areaSqm: 25,
       bedrooms: 0,
     }).eligible,
@@ -135,7 +146,9 @@ test("hard filters accept Greece-wide land and do not turn optimal built area in
   );
   for (const override of [
     { priceEur: 300_001 },
-    { landSqm: 999.9 },
+    { landSqm: 799.99 },
+    { landSqm: null },
+    { landSqm: NaN },
     { landSqm: 0 },
     { road: "unpaved" as const },
     { countryCode: "IT" },
@@ -151,7 +164,6 @@ test("hard filters accept Greece-wide land and do not turn optimal built area in
     { priceEur: null },
     { priceEur: 0 },
     { priceEur: NaN },
-    { landSqm: null },
     { road: "unknown" as const },
   ]) {
     const evaluation = evaluate({ ...base, ...override });
@@ -314,7 +326,7 @@ test("new demo fixtures replace the old sample records without leaving stale apa
   assert.equal(stats.observations, 15);
   assert.equal(stats.properties, 12);
   assert.ok(
-    readListings(db, "all").listings.every(
+    readListings(db, "all", "all", "audit").listings.every(
       (p) => p.title !== "Legacy Athens apartment",
     ),
   );
@@ -349,7 +361,7 @@ test("adapter and validation failures leave the last successful import intact", 
   const db = openDatabase(":memory:");
   t.after(() => db.close());
   await runImport(db, adapters);
-  const before = readListings(db, "all");
+  const before = readListings(db, "all", "all", "audit");
   const failing: ListingAdapter = {
     id: "failed",
     name: "Failed",
@@ -361,10 +373,10 @@ test("adapter and validation failures leave the last successful import intact", 
     runImport(db, [adapters[0]!, failing]),
     /Source unavailable/,
   );
-  assert.deepEqual(readListings(db, "all"), before);
+  assert.deepEqual(readListings(db, "all", "all", "audit"), before);
   const invalid = { ...(await fixture()), url: "not a URL" };
   await assert.rejects(runImport(db, [adapterFor(invalid)]));
-  assert.deepEqual(readListings(db, "all"), before);
+  assert.deepEqual(readListings(db, "all", "all", "audit"), before);
 });
 
 test("SQLite failure rolls back observation changes and materialized scores together", async (t) => {
@@ -372,7 +384,7 @@ test("SQLite failure rolls back observation changes and materialized scores toge
   t.after(() => db.close());
   const original = await fixture();
   await runImport(db, [adapterFor(original)]);
-  const before = readListings(db, "all");
+  const before = readListings(db, "all", "all", "audit");
   db.exec(
     "CREATE TRIGGER reject_listing BEFORE INSERT ON listings BEGIN SELECT RAISE(ABORT, 'test failure'); END;",
   );
@@ -380,7 +392,7 @@ test("SQLite failure rolls back observation changes and materialized scores toge
     runImport(db, [adapterFor({ ...original, priceEur: 100_000 })]),
     /test failure/,
   );
-  assert.deepEqual(readListings(db, "all"), before);
+  assert.deepEqual(readListings(db, "all", "all", "audit"), before);
   const stored = db.prepare("SELECT payload FROM observations").get()!;
   assert.equal(
     (JSON.parse(stored.payload as string) as ListingObservation).priceEur,
@@ -415,9 +427,9 @@ test("disk database survives reopening and REST serves the worker results with v
   });
   for (const [status, expected] of [
     ["eligible", 7],
-    ["needs-checking", 2],
-    ["excluded", 3],
-    ["all", 12],
+    ["needs-checking", 1],
+    ["excluded", 2],
+    ["all", 10],
   ] as const) {
     const response = await fetch(
       `${baseUrl}/api/listings?status=${status}&collection=demo`,
@@ -426,7 +438,7 @@ test("disk database survives reopening and REST serves the worker results with v
     assert.equal(response.headers.get("cache-control"), "no-store");
     const body = (await response.json()) as ListingsResponse;
     assert.equal(body.listings.length, expected);
-    assert.equal(body.summary.properties, 12);
+    assert.equal(body.summary.properties, 10);
     if (status === "excluded")
       assert.ok(
         body.listings.every(
@@ -451,6 +463,84 @@ test("disk database survives reopening and REST serves the worker results with v
     400,
   );
   assert.equal((await fetch(`${baseUrl}/api/no-such-route`)).status, 404);
+});
+
+test("the 800 m² gate hides missing and undersized plots from every REST view and re-evaluates old scores", async (t) => {
+  const db = openDatabase(":memory:");
+  const base = normalizeObservation(await fixture());
+  const plots = [null, 0, 799.99, 800, 950] as const;
+  await runImport(db, [
+    adapterFor(
+      ...plots.map((landSqm, i) => ({
+        ...base,
+        externalId: "land-boundary-" + i,
+        address: null,
+        latitude: null,
+        longitude: null,
+        landSqm,
+        areaSqm: 392,
+        priceEur: i === 4 ? 30000 : 100,
+      })),
+    ),
+  ]);
+  // A database written by the old worker must not retain its old policy decisions.
+  db.prepare("UPDATE listings SET evaluation = ?, scoring_version = ?").run(
+    JSON.stringify({
+      eligible: true,
+      status: "eligible",
+      score: 100,
+      filterReasons: [],
+      missingDetails: [],
+      reasons: [],
+    }),
+    "greece-land-v2",
+  );
+  const audit = readListings(db, "all", "demo", "audit");
+  assert.equal(audit.summary.properties, 5);
+  assert.equal(audit.summary.excluded, 3);
+  assert.ok(
+    audit.listings
+      .filter((row) => row.landSqm === null)
+      .every((row) => row.score === null),
+  );
+  const server = createApp(db).listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    db.close();
+  });
+  const { port } = server.address() as { port: number };
+  for (const status of ["all", "eligible", "needs-checking", "excluded"]) {
+    const body = (await (
+      await fetch(
+        "http://127.0.0.1:" +
+          port +
+          "/api/listings?collection=demo&status=" +
+          status,
+      )
+    ).json()) as ListingsResponse;
+    assert.equal(body.policy.version, "greece-land-v3");
+    assert.equal(body.summary.properties, 2);
+    assert.equal(body.summary.eligible, 2);
+    assert.equal(body.summary.needsChecking, 0);
+    assert.equal(body.summary.excluded, 0);
+    assert.ok(
+      body.listings.every((row) => row.landSqm !== null && row.landSqm >= 800),
+    );
+    assert.equal(
+      body.listings.length,
+      ["all", "eligible"].includes(status) ? 2 : 0,
+    );
+    assert.ok(
+      body.listings.every((row) => row.reasons.length === 6),
+      "Old scores are recomputed.",
+    );
+  }
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS n FROM observations").get()?.n,
+    5,
+    "Rejected source observations remain available for later enrichment.",
+  );
 });
 
 test("an initialized but unseeded database returns a useful empty result", (t) => {

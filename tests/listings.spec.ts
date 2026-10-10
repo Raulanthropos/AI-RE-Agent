@@ -60,9 +60,9 @@ test("connected map, score explanations, and source links work from the real API
     await other.locator(".card-title").innerText(),
   );
   await page.getByRole("button", { name: "Needs checking" }).click();
-  await expect(page.getByRole("article")).toHaveCount(2);
+  await expect(page.getByRole("article")).toHaveCount(1);
   await page.getByRole("button", { name: "Outside brief" }).click();
-  await expect(page.getByRole("article")).toHaveCount(3);
+  await expect(page.getByRole("article")).toHaveCount(2);
   await page.getByRole("button", { name: "Matches" }).click();
   await page.getByRole("button", { name: "All Greece" }).click();
   await page.screenshot({
@@ -166,6 +166,12 @@ test("mobile layout, map view, list view and dialogs fit a narrow touch screen",
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Your brief", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("100 m² built is ideal");
+  await expect(page.getByRole("dialog")).toContainText(
+    "A stated plot of at least 800 m² is required",
+  );
+  await expect(page.getByRole("dialog")).toContainText(
+    "Missing or smaller plots are excluded",
+  );
   await page.getByRole("button", { name: "Close dialog" }).click();
   expect(
     await page.evaluate(

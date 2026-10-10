@@ -1,3 +1,6 @@
+/** Fixed buyer requirement, shared by the server and presentation. */
+export const MIN_LAND_SQM = 800;
+
 export type Condition =
   | "new"
   | "renovated"

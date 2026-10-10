@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MIN_LAND_SQM } from "@ai-re-agent/contracts";
 import type {
   Feature,
   Listing,
@@ -72,10 +73,29 @@ export function App() {
         const result = (await response.json()) as ListingsResponse;
         if (
           !Array.isArray(result.listings) ||
-          result.policy?.version !== "greece-land-v2"
+          result.policy?.version !== "greece-land-v3"
         )
           throw new Error("Server response did not match the current app.");
-        if (!cancelled) setData(result);
+        const listings = result.listings.filter(
+          (listing) =>
+            typeof listing.landSqm === "number" &&
+            Number.isFinite(listing.landSqm) &&
+            listing.landSqm >= MIN_LAND_SQM,
+        );
+        if (!cancelled)
+          setData({
+            ...result,
+            listings,
+            summary: {
+              ...result.summary,
+              properties: listings.length,
+              eligible: listings.filter((p) => p.status === "eligible").length,
+              needsChecking: listings.filter(
+                (p) => p.status === "needs-checking",
+              ).length,
+              excluded: listings.filter((p) => p.status === "excluded").length,
+            },
+          });
       })
       .catch(() => {
         if (!cancelled)
@@ -338,7 +358,7 @@ export function App() {
             <div className="brief-chips">
               <span className="brief-chips-label">Your essentials</span>
               <button onClick={() => setPanel("brief")}>Up to €300k</button>
-              <button onClick={() => setPanel("brief")}>1,000+ m² land</button>
+              <button onClick={() => setPanel("brief")}>800+ m² land</button>
               <button onClick={() => setPanel("brief")}>Paved access</button>
             </div>
             {page === "explore" && (
@@ -408,9 +428,9 @@ export function App() {
                   <p className="unconfirmed-note">
                     <Icon name="info" size={17} />
                     <span>
-                      These leads have not passed your essentials. Unknown plot
-                      size, price or road access needs confirmation before a
-                      listing becomes a match.
+                      Every lead reports at least 800 m² of land. Other missing
+                      essentials, such as price or paved access, still need
+                      checking before it becomes a match.
                     </span>
                   </p>
                 )}
@@ -458,12 +478,12 @@ export function App() {
                     {page === "saved" && !savedCount
                       ? "Tap the heart on any place to keep it in your shortlist."
                       : collection === "live" && !data?.summary.properties
-                        ? "The daily worker has not saved any leads yet. Open the search status above to see its progress."
+                        ? "No listings with a stated plot of at least 800 m² are available yet. Open the search status above to see progress."
                         : collection === "live" &&
                             status === "eligible" &&
                             !query &&
                             !features.length
-                          ? "Matches need a reported price up to €300,000, at least 1,000 m² of land and paved access. Leads with missing information remain in Needs checking."
+                          ? "Matches need a reported price up to €300,000, at least 800 m² of land and paved access. Listings without a stated plot size, or with less than 800 m², are excluded."
                           : "Try another location or fewer extras."}
                   </p>
                   {query || features.length ? (
@@ -631,7 +651,7 @@ export function App() {
                 data?.policy.filters ?? [
                   "For sale in Greece",
                   "Up to €300,000",
-                  "At least 1,000 m² of land",
+                  "A stated plot of at least 800 m²",
                   "Paved access to the property",
                 ]
               ).map((f) => (
@@ -642,8 +662,9 @@ export function App() {
               ))}
             </ul>
             <p className="small-note">
-              An unknown price, plot size or access road goes into “Needs
-              checking”. Listing claims are not independent verification.
+              A stated plot of at least 800 m² is required. Missing or smaller
+              plots are excluded. An unknown price or access road goes into
+              “Needs checking”. Listing claims are not independent verification.
             </p>
             <h3>What matters most</h3>
             <p>

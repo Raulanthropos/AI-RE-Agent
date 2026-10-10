@@ -5,12 +5,14 @@ import type {
   ScoreReason,
 } from "@ai-re-agent/contracts";
 
+import { MIN_LAND_SQM } from "@ai-re-agent/contracts";
+
 export const POLICY = {
-  version: "greece-land-v2",
+  version: "greece-land-v3",
   filters: [
     "For sale in Greece",
     "Up to €300,000",
-    "At least 1,000 m² of land",
+    "Explicitly stated plot of at least 800 m²",
     "Paved access to the property",
   ],
   weights: [
@@ -26,6 +28,9 @@ const clamp = (n: number) => Math.max(0, Math.min(1, n));
 const round = (n: number) => Math.round(n * 100) / 100;
 const known = (n: number | null): n is number =>
   n !== null && Number.isFinite(n) && n >= 0;
+export const hasRequiredLand = (p: Pick<PropertyDetails, "landSqm">): boolean =>
+  known(p.landSqm) && p.landSqm >= MIN_LAND_SQM;
+
 const extras: [Feature, string, number][] = [
   ["barn", "barn / stable", 4],
   ["trees", "established trees", 4],
@@ -49,9 +54,11 @@ export function evaluate(p: PropertyDetails): Evaluation {
   else if (p.priceEur > 300_000)
     filterReasons.push("The asking price exceeds €300,000.");
   if (!known(p.landSqm))
-    missingDetails.push("Confirm the plot is at least 1,000 m².");
-  else if (p.landSqm < 1_000)
-    filterReasons.push("The plot is smaller than 1,000 m².");
+    filterReasons.push(
+      "Plot size is not stated; at least 800 m² of land is required.",
+    );
+  else if (p.landSqm < MIN_LAND_SQM)
+    filterReasons.push("The plot is smaller than 800 m².");
   if (p.road === "unpaved")
     filterReasons.push("Access includes an unpaved road.");
   else if (p.road !== "paved")
