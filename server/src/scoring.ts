@@ -56,7 +56,7 @@ export function evaluate(p: PropertyDetails): Evaluation {
     filterReasons.push("Access includes an unpaved road.");
   else if (p.road !== "paved")
     missingDetails.push("Confirm paved access all the way to the property.");
-  if (p.discovery?.basis === "search")
+  if (p.discovery?.basis === "search" || p.discovery?.basis === "catalog")
     missingDetails.push(
       "Search result only: confirm availability and extracted details on the source website.",
     );

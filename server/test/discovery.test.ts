@@ -391,6 +391,81 @@ test("skipped pages retain their attempt date and do not claim a failed refresh"
   assert.equal(evaluate(foreign).status, "excluded");
 });
 
+test("catalog photos and area survive discovery, SQLite and REST while missing land stays unconfirmed", async (t) => {
+  const db = openDatabase(":memory:");
+  const catalogHit = {
+    url,
+    title: "House 392 m² for sale",
+    snippet: "39.000 €",
+    catalog: {
+      sourceUrl: "https://www.plot.gr/search/?category=20034",
+      imageUrls: ["https://static.plot.gr/12345678_0_m.jpg"],
+      location: { region: "Crete", city: "Heraklion", neighborhood: "Prinias" },
+    },
+  };
+  const result = await discover(
+    db,
+    {
+      acquisition: "browser",
+      provider: {
+        name: "Unavailable search",
+        search: async () => {
+          throw Error("human check");
+        },
+      },
+      catalogs: async function* () {
+        yield { name: "Portal cards", hits: [catalogHit] };
+      },
+      page: async () => {
+        throw Error("HTTP 403");
+      },
+    },
+    true,
+  );
+  assert.equal(result?.status, "partial");
+  assert.equal(result?.found, 1);
+  const server = createApp(db).listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    db.close();
+  });
+  const address = server.address() as { port: number };
+  const response = await fetch(
+    "http://127.0.0.1:" +
+      address.port +
+      "/api/listings?status=all&collection=live",
+  );
+  const { listings, summary } = await response.json();
+  assert.equal(summary.eligible, 0);
+  assert.equal(summary.needsChecking, 1);
+  const row = listings[0];
+  assert.equal(row.priceEur, 39000);
+  assert.equal(row.areaSqm, 392);
+  assert.equal(row.landSqm, null);
+  assert.equal(row.neighborhood, "Prinias");
+  assert.equal(
+    row.latitude,
+    null,
+    "A place name never becomes an exact property coordinate.",
+  );
+  assert.equal(row.discovery.basis, "catalog");
+  assert.equal(row.discovery.acquisition, "browser");
+  assert.equal(row.sourcePhotos[0].url, catalogHit.catalog.imageUrls[0]);
+  assert.equal(row.sourcePhotos[0].sourceUrl, identifyListing(url)!.url);
+  assert.equal(row.status, "needs-checking");
+
+  const full = extractListing({ target, hit, now, html: schema() })!;
+  const next = extractListing({ target, hit: catalogHit, now })!;
+  const kept = retainPrevious(full, next, now, "HTTP 403", true)!;
+  assert.equal(
+    kept.priceEur,
+    200000,
+    "Catalog updates cannot downgrade full-page facts.",
+  );
+  assert.equal(kept.landSqm, 1200);
+});
+
 test("REST serves separate collections and persisted search status without private configuration", async (t) => {
   const db = openDatabase(":memory:");
   await runImport(db, adapters);

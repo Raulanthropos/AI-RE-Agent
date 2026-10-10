@@ -27,7 +27,7 @@ export function retainPrevious(
   if (!previous) return next;
   if (
     next?.discovery?.basis === "page" ||
-    (next && previous.discovery?.basis === "search")
+    (next && previous.discovery?.basis !== "page")
   )
     return next;
   // Retain the original evidence timestamp; lastAttemptAt is not a verification timestamp.
@@ -95,15 +95,17 @@ export async function discover(
       }
     }
     // Catalogs continue independently when a general search provider is unavailable.
-    if (io.catalogs) for await (const catalog of io.catalogs()) {
-      run.queries++;
-      if(catalog.error) issue(catalog.name+": "+catalog.error);
-      for(const hit of catalog.hits) {
-        const target=identifyListing(hit.url);
-        if(target) found.set(target.sourceId+":"+target.externalId,hit);
+    if (io.catalogs)
+      for await (const catalog of io.catalogs()) {
+        run.queries++;
+        if (catalog.error) issue(catalog.name + ": " + catalog.error);
+        for (const hit of catalog.hits) {
+          const target = identifyListing(hit.url);
+          if (target) found.set(target.sourceId + ":" + target.externalId, hit);
+        }
+        run.found = found.size;
+        saveRun(db, run);
       }
-      run.found=found.size;saveRun(db,run);
-    }
     run.found = found.size;
     // Previously discovered pages are revisited even when today's search omits them.
     const candidates = new Map(found);
@@ -127,6 +129,8 @@ export async function discover(
     for (const [key, hit] of ordered.slice(0, 200)) {
       const target = identifyListing(hit.url)!;
       let next = found.has(key) ? extractListing({ target, hit, now }) : null;
+      if (next?.discovery && hit.catalog)
+        next.discovery.acquisition = io.acquisition ?? "http";
       if (!next && !previous.has(key)) continue;
       let message =
         "Page not requested in this cycle; only indexed search information is available.";
@@ -142,7 +146,8 @@ export async function discover(
             throw new Error(
               "Page did not expose an identifiable property for sale or rent.",
             );
-          if (enriched.discovery) enriched.discovery.acquisition = io.acquisition ?? "http";
+          if (enriched.discovery)
+            enriched.discovery.acquisition = io.acquisition ?? "http";
           next = enriched;
           run.pagesRead++;
         } catch (error) {
@@ -175,7 +180,7 @@ export async function discover(
       fetchListings: async () =>
         observations.filter((item) => item.sourceId === site.id),
     }));
-    await runImport(db, adapters, {enrich:io.enrich});
+    await runImport(db, adapters, { enrich: io.enrich });
     run.imported = observations.length;
     run.status = run.issues.length
       ? run.imported || run.found

@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
 
-// The public OSM tile service prohibits headless bulk/bot tile use.
-// Every browser test blocks remote tiles and exercises the bundled overview.
+// Block public map services: these tests exercise the bundled overview offline.
 test.beforeEach(async ({ page }) => {
+  await page.route("https://tiles.openfreemap.org/**", (route) =>
+    route.abort(),
+  );
   await page.addInitScript(() =>
     localStorage.setItem("estia:collection", "demo"),
   );
@@ -49,9 +51,10 @@ test("connected map, score explanations, and source links work from the real API
   await expect(detail).not.toBeVisible();
   const other = page.getByRole("article").nth(2);
   const otherId = await other.getAttribute("data-listing-id");
-  await page
-    .locator('[data-marker-id="' + otherId + '"]')
-    .click({ force: true });
+  await page.getByRole("button", { name: "All Greece" }).click();
+  const otherPin = page.locator('[data-marker-id="' + otherId + '"]');
+  await expect(otherPin).toBeInViewport();
+  await otherPin.click();
   await expect(other).toHaveClass(/is-selected/);
   await expect(page.locator(".map-preview")).toContainText(
     await other.locator(".card-title").innerText(),

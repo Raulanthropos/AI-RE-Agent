@@ -1,0 +1,36 @@
+.brief-chips-label {
+  align-self: center;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.unconfirmed-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f5f2e9;
+  color: #675736;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.unconfirmed-note > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.score-badge.unconfirmed-badge {
+  color: #735722;
+  background: #f5f0df;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  .brief-chips-label {
+    flex-basis: 100%;
+  }
+}

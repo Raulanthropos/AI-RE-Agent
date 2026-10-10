@@ -1,5 +1,12 @@
 import type { Listing } from "@ai-re-agent/contracts";
-import { area, featureInfo, money, score, statusLabel, englishListing } from "../lib";
+import {
+  area,
+  featureInfo,
+  money,
+  score,
+  statusLabel,
+  englishListing,
+} from "../lib";
 import { ListingGallery } from "./ListingGallery";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
@@ -73,9 +80,30 @@ export function ListingDetail({
           </section>
         )}
         <p className="description">{p.description}</p>
-        {original.english && <details className="translation-original"><summary>Machine translated to English · show original</summary><h4>{original.title}</h4><p>{original.description}</p></details>}
-        {p.discovery && !original.english && /[α-ωΑ-Ω]/u.test(p.description) && <p className="small-note">English translation is unavailable. Run the local data setup and enrichment command.</p>}
-        {p.areaLocation && p.latitude === null && <div className="area-location"><strong>Area location: {p.areaLocation.label}</strong><p>{p.areaLocation.explanation}</p><a href={p.areaLocation.sourceUrl} target="_blank" rel="noreferrer">Place data: GeoNames (CC BY 4.0)</a></div>}
+        {original.english && (
+          <details className="translation-original">
+            <summary>Machine translated to English · show original</summary>
+            <h4>{original.title}</h4>
+            <p>{original.description}</p>
+          </details>
+        )}
+        {p.discovery &&
+          !original.english &&
+          /[α-ωΑ-Ω]/u.test(p.description) && (
+            <p className="small-note">
+              English translation is unavailable. Run the local data setup and
+              enrichment command.
+            </p>
+          )}
+        {p.areaLocation && p.latitude === null && (
+          <div className="area-location">
+            <strong>Area location: {p.areaLocation.label}</strong>
+            <p>{p.areaLocation.explanation}</p>
+            <a href={p.areaLocation.sourceUrl} target="_blank" rel="noreferrer">
+              Place data: GeoNames (CC BY 4.0)
+            </a>
+          </div>
+        )}
         {(p.filterReasons.length > 0 || p.missingDetails.length > 0) && (
           <div className="checking-note">
             <Icon name="info" />
@@ -167,8 +195,16 @@ export function ListingDetail({
           <section className="detail-section score-section">
             <div className="section-title">
               <div>
-                <h4>Why this score?</h4>
-                <p>Fit with your brief, based on listed information.</p>
+                <h4>
+                  {p.status === "needs-checking"
+                    ? "Provisional score"
+                    : "Why this score?"}
+                </h4>
+                <p>
+                  {p.status === "needs-checking"
+                    ? "A partial assessment of reported facts, not a confirmed match."
+                    : "Fit with your brief, based on listed information."}
+                </p>
               </div>
               <strong>
                 {score(p.score)}

@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
+  await page.route("https://tiles.openfreemap.org/**", (route) =>
+    route.abort(),
+  );
   await page.route("https://static-cz.car.gr/**", (route) =>
     route.fulfill({
       contentType: "image/svg+xml",
@@ -12,7 +15,7 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test("internet collection defaults to unconfirmed leads, exposes evidence and keeps samples separate", async ({
+test("internet collection defaults to matches, separates unconfirmed leads and exposes evidence", async ({
   page,
 }) => {
   await page.goto("/");
@@ -20,10 +23,28 @@ test("internet collection defaults to unconfirmed leads, exposes evidence and ke
     page.getByRole("combobox", { name: "Listing collection" }),
   ).toHaveValue("live");
   await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Matches", exact: false }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("article")).toContainText(
+    "Source page · reported details",
+  );
+  await page
+    .getByRole("button", { name: "Needs checking", exact: false })
+    .click();
+  await expect(page.locator(".unconfirmed-note")).toContainText(
+    "have not passed your essentials",
+  );
+  await expect(page.locator(".results-toolbar")).toContainText(
+    "1 unconfirmed leads",
+  );
   await expect(page.getByRole("article")).toContainText(
     "Search snippet · unconfirmed",
   );
   await expect(page.getByRole("article")).toContainText("€240,000");
+  await expect(page.getByRole("article").locator(".score-badge")).toHaveText(
+    "Unconfirmed",
+  );
   await expect(page.locator(".price-pin")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "On map", exact: true }),
@@ -34,6 +55,9 @@ test("internet collection defaults to unconfirmed leads, exposes evidence and ke
   await page.getByRole("article").locator(".card-title").click();
   const detail = page.getByRole("dialog", { name: "A closer look" });
   await expect(detail).toContainText("Search result only");
+  await expect(
+    detail.getByRole("heading", { name: "Provisional score", exact: true }),
+  ).toBeVisible();
   await expect(detail).toContainText("has no map pin");
   await detail.getByText("Evidence behind the extracted details").click();
   await expect(detail.locator(".extraction-evidence")).toContainText("1200");
@@ -53,10 +77,79 @@ test("internet collection defaults to unconfirmed leads, exposes evidence and ke
     .getByRole("combobox", { name: "Listing collection" })
     .selectOption("live");
   await expect(page.getByRole("article")).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Matches", exact: false }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.reload();
   await expect(
     page.getByRole("combobox", { name: "Listing collection" }),
   ).toHaveValue("live");
+});
+
+test("a 392 m² building with unknown land is an unconfirmed lead, not a match", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route(
+    "**/api/listings?status=all&collection=live",
+    async (route) => {
+      const response = await route.fetch();
+      const data = await response.json();
+      const lead = data.listings.find(
+        (listing: { status: string }) => listing.status === "needs-checking",
+      );
+      data.listings = [
+        {
+          ...lead,
+          title: "House 392 m² for sale",
+          english: undefined,
+          areaSqm: 392,
+          landSqm: null,
+          priceEur: 39000,
+          score: 10,
+          missingDetails: [
+            "Confirm the plot is at least 1,000 m².",
+            ...lead.missingDetails,
+          ],
+        },
+      ];
+      data.summary = {
+        ...data.summary,
+        properties: 1,
+        eligible: 0,
+        needsChecking: 1,
+        excluded: 0,
+      };
+      await route.fulfill({ response, json: data });
+    },
+  );
+  await page.goto("/");
+  await expect(page.getByRole("article")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "No matches confirmed yet." }),
+  ).toBeVisible();
+  await expect(page.locator(".empty-state")).toContainText(
+    "at least 1,000 m² of land",
+  );
+  await page
+    .getByRole("button", { name: "Review 1 unconfirmed leads" })
+    .click();
+  const card = page.getByRole("article");
+  await expect(card).toContainText("392 m² built");
+  await expect(card).toContainText("Plot unknown");
+  await expect(card).toContainText("1,000 m² minimum not confirmed");
+  await expect(card.locator(".score-denominator")).toHaveCount(0);
+  await card
+    .getByRole("button", { name: "Unconfirmed: see missing essentials" })
+    .click();
+  const detail = page.getByRole("dialog", { name: "A closer look" });
+  await expect(detail).toContainText("Before this can be a match");
+  await expect(detail).toContainText("Confirm the plot is at least 1,000 m²");
+  await expect(detail).toContainText("Provisional score");
+  await expect(detail).toContainText("100 m² built is an ideal, not a minimum");
+  expect(await detail.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
 });
 
 test("mobile gallery displays original photographs, property facts and an image failure fallback", async ({

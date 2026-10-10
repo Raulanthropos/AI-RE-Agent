@@ -302,7 +302,17 @@ export function extractListing(input: ExtractInput): ListingObservation | null {
     record(field, true, excerpt);
     return true;
   };
-  const address = page?.property.address;
+  const catalogLocation = input.hit.catalog?.location;
+  const address =
+    page?.property.address ??
+    (catalogLocation
+      ? {
+          addressCountry: "GR",
+          addressRegion: catalogLocation.region,
+          addressLocality: catalogLocation.city,
+          addressNeighborhood: catalogLocation.neighborhood,
+        }
+      : undefined);
   const location = title
     .split(/(?:για πώληση|προς πώληση|for sale)[,:]?\s*/i)[1]
     ?.replace(/\s*[|–]\s*(?:plot.gr|indomio|spitogatos|xe.gr).*$/i, "")
@@ -400,7 +410,7 @@ export function extractListing(input: ExtractInput): ListingObservation | null {
     locationAccuracy: latitude === null ? "unknown" : "approximate",
     photo: null,
     sourcePhotos: sourcePhotos(
-      page?.property.image,
+      page?.property.image ?? input.hit.catalog?.imageUrls,
       input.target.sourceId,
       input.target.externalId,
       input.target.url,
@@ -410,7 +420,7 @@ export function extractListing(input: ExtractInput): ListingObservation | null {
       ? page.property.sourceDetails
       : [],
     discovery: {
-      basis: page ? "page" : "search",
+      basis: page ? "page" : input.hit.catalog ? "catalog" : "search",
       acquisition: "http",
       observedAt: input.now,
       lastSeenAt: input.now,
@@ -418,7 +428,9 @@ export function extractListing(input: ExtractInput): ListingObservation | null {
       pageStatus: page ? "read" : "unavailable",
       message: page
         ? "Extracted from the listing's structured data and description; source claims need confirmation."
-        : "Search result only. Availability and missing details need confirmation on the source website.",
+        : input.hit.catalog
+          ? "Extracted from the portal’s search-results card. Photos and named area are reported by the source; land, availability and other missing details need confirmation on the full listing."
+          : "Search result only. Availability and missing details need confirmation on the source website.",
       evidence,
     },
   };

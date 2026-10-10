@@ -25,7 +25,7 @@ export interface DiscoveryEvidence {
 }
 export interface DiscoveryDetails {
   acquisition?: "http" | "browser" | "saved-page";
-  basis: "search" | "page";
+  basis: "search" | "catalog" | "page";
   observedAt: string;
   lastSeenAt: string;
   lastAttemptAt: string | null;
@@ -67,25 +67,37 @@ export function isSourcePhotoUrl(value: string): boolean {
     const url = new URL(value);
     return (
       url.protocol === "https:" &&
-      url.hostname === "static-cz.car.gr" &&
+      ["static-cz.car.gr", "static.plot.gr"].includes(url.hostname) &&
       !url.port &&
       !url.username &&
       !url.password &&
       !url.search &&
       !url.hash &&
-      /^\/\d+_\d+_[a-z]+\.(?:jpe?g|png|webp)$/.test(url.pathname)
+      /^\/\d+_[A-Za-z0-9]+_[a-z]+\.(?:jpe?g|png|webp)$/.test(url.pathname)
     );
   } catch {
     return false;
   }
 }
 export interface AreaLocation {
-  latitude: number; longitude: number; label: string; geonameId: string; sourceUrl: string;
-  kind: "settlement"; explanation: string;
+  latitude: number;
+  longitude: number;
+  label: string;
+  geonameId: string;
+  sourceUrl: string;
+  kind: "settlement";
+  explanation: string;
 }
 export interface EnglishListingText {
-  title: string; description: string; city: string; neighborhood: string; region: string;
-  sourceDetails: SourceDetail[]; evidence: DiscoveryEvidence[]; engine: string; translatedAt: string;
+  title: string;
+  description: string;
+  city: string;
+  neighborhood: string;
+  region: string;
+  sourceDetails: SourceDetail[];
+  evidence: DiscoveryEvidence[];
+  engine: string;
+  translatedAt: string;
 }
 export interface PropertyDetails {
   english?: EnglishListingText;

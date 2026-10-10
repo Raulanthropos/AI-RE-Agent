@@ -1,5 +1,13 @@
 import type { Listing } from "@ai-re-agent/contracts";
-import { area, featureInfo, money, photoFor, score, englishListing, mapPosition } from "../lib";
+import {
+  area,
+  featureInfo,
+  money,
+  photoFor,
+  score,
+  englishListing,
+  mapPosition,
+} from "../lib";
 import { Icon } from "./Icon";
 import { ListingImage } from "./ListingImage";
 
@@ -72,18 +80,28 @@ export function ListingCard({
       <div className="card-body">
         <div className="card-price-row">
           <strong>{money(listing.priceEur)}</strong>
-          {listing.score !== null && (
+          {listing.status === "needs-checking" ? (
             <button
-              className="score-badge"
+              className="score-badge unconfirmed-badge"
               onClick={onOpen}
-              aria-label={
-                "Why this score: " + score(listing.score) + " out of 100"
-              }
+              aria-label="Unconfirmed: see missing essentials"
             >
-              <span className="score-dot" />
-              {score(listing.score)}
-              <span className="score-denominator">/100</span>
+              Unconfirmed
             </button>
+          ) : (
+            listing.score !== null && (
+              <button
+                className="score-badge"
+                onClick={onOpen}
+                aria-label={
+                  "Why this score: " + score(listing.score) + " out of 100"
+                }
+              >
+                <span className="score-dot" />
+                {score(listing.score)}
+                <span className="score-denominator">/100</span>
+              </button>
+            )
           )}
         </div>
         <button className="card-title" onClick={onOpen}>
@@ -109,7 +127,11 @@ export function ListingCard({
         {listing.status === "excluded" ? (
           <p className="card-caution">{listing.filterReasons[0]}</p>
         ) : listing.status === "needs-checking" ? (
-          <p className="card-caution">{listing.missingDetails[0]}</p>
+          <p className="card-caution">
+            {listing.landSqm === null
+              ? "Land size missing · 1,000 m² minimum not confirmed."
+              : listing.missingDetails[0]}
+          </p>
         ) : (
           <div className="feature-tags">
             {features.map((f) => (
@@ -126,7 +148,9 @@ export function ListingCard({
               ? "Saved page · reported details"
               : listing.discovery.basis === "search"
                 ? "Search snippet · unconfirmed"
-                : "Source page · reported details"}
+                : listing.discovery.basis === "catalog"
+                  ? "Portal results · unconfirmed"
+                  : "Source page · reported details"}
             {Date.now() - Date.parse(listing.discovery.observedAt) >
               7 * 86400000 && " · older than 7 days"}
           </p>
@@ -148,10 +172,7 @@ export function ListingCard({
               </>
             )}
           </span>
-          <button
-            onClick={onMap}
-            disabled={!mapPosition(listing)}
-          >
+          <button onClick={onMap} disabled={!mapPosition(listing)}>
             <Icon name="pin" size={14} />
             On map
           </button>

@@ -11,6 +11,7 @@ import { ListingDetail } from "./components/ListingDetail";
 import { Modal } from "./components/Modal";
 import { PropertyMap } from "./components/PropertyMap";
 import { SearchActivity } from "./components/SearchActivity";
+import "./requirements.css";
 
 type Page = "explore" | "saved";
 type Status = "eligible" | "needs-checking" | "excluded";
@@ -41,15 +42,7 @@ export function App() {
       return "live";
     }
   });
-  const [status, setStatus] = useState<Status>(() => {
-    try {
-      return localStorage.getItem("estia:collection") === "demo"
-        ? "eligible"
-        : "needs-checking";
-    } catch {
-      return "needs-checking";
-    }
-  });
+  const [status, setStatus] = useState<Status>("eligible");
   const refreshListings = useCallback(
     () => setRevision((current) => current + 1),
     [],
@@ -131,7 +124,16 @@ export function App() {
           (page === "saved" ? saved.includes(p.id) : p.status === status) &&
           (!needle ||
             searchable(
-              [p.title, p.city, p.neighborhood, p.region, englishListing(p).title, englishListing(p).city, englishListing(p).neighborhood, englishListing(p).region].join(" "),
+              [
+                p.title,
+                p.city,
+                p.neighborhood,
+                p.region,
+                englishListing(p).title,
+                englishListing(p).city,
+                englishListing(p).neighborhood,
+                englishListing(p).region,
+              ].join(" "),
             ).includes(needle)) &&
           features.every((key) => p.features[key] === true),
       )
@@ -234,7 +236,7 @@ export function App() {
                 const next = event.target.value as "live" | "demo";
                 setCollection(next);
                 setData(null);
-                setStatus(next === "live" ? "needs-checking" : "eligible");
+                setStatus("eligible");
                 setDetailId(null);
                 setSelectedId(null);
                 clearFilters();
@@ -334,12 +336,10 @@ export function App() {
               <SearchActivity onUpdated={refreshListings} />
             )}
             <div className="brief-chips">
+              <span className="brief-chips-label">Your essentials</span>
               <button onClick={() => setPanel("brief")}>Up to €300k</button>
               <button onClick={() => setPanel("brief")}>1,000+ m² land</button>
-              <button onClick={() => setPanel("brief")}>
-                <Icon name="check" size={13} />
-                Paved access
-              </button>
+              <button onClick={() => setPanel("brief")}>Paved access</button>
             </div>
             {page === "explore" && (
               <div className="status-tabs" aria-label="Listing status">
@@ -375,7 +375,13 @@ export function App() {
             <div className="results-toolbar">
               <span aria-live="polite">
                 <b>{filtered.length}</b>{" "}
-                {page === "saved" ? "saved places" : "places to explore"}
+                {page === "saved"
+                  ? "saved places"
+                  : status === "needs-checking"
+                    ? "unconfirmed leads"
+                    : status === "excluded"
+                      ? "outside your brief"
+                      : "matching places"}
               </span>
               <label>
                 Sort by{" "}
@@ -384,13 +390,30 @@ export function App() {
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                 >
-                  <option value="score">Best fit</option>
+                  <option value="score">
+                    {page === "explore" && status === "needs-checking"
+                      ? "Provisional fit"
+                      : "Best fit"}
+                  </option>
                   <option value="price">Lowest price</option>
                   <option value="land">Most land</option>
                 </select>
               </label>
             </div>
             <div className="results-scroll">
+              {!loading &&
+                !error &&
+                page === "explore" &&
+                status === "needs-checking" && (
+                  <p className="unconfirmed-note">
+                    <Icon name="info" size={17} />
+                    <span>
+                      These leads have not passed your essentials. Unknown plot
+                      size, price or road access needs confirmation before a
+                      listing becomes a match.
+                    </span>
+                  </p>
+                )}
               {error && (
                 <div className="empty-state" role="alert">
                   <Icon name="info" size={28} />
@@ -424,7 +447,12 @@ export function App() {
                   <h2>
                     {page === "saved" && !savedCount
                       ? "A place for your favourites."
-                      : "Nothing here just yet."}
+                      : collection === "live" &&
+                          status === "eligible" &&
+                          !query &&
+                          !features.length
+                        ? "No matches confirmed yet."
+                        : "Nothing here just yet."}
                   </h2>
                   <p>
                     {page === "saved" && !savedCount
@@ -435,7 +463,7 @@ export function App() {
                             status === "eligible" &&
                             !query &&
                             !features.length
-                          ? "No listing has confirmed all essentials yet. Look in Needs checking for leads with missing details."
+                          ? "Matches need a reported price up to €300,000, at least 1,000 m² of land and paved access. Leads with missing information remain in Needs checking."
                           : "Try another location or fewer extras."}
                   </p>
                   {query || features.length ? (
@@ -448,6 +476,15 @@ export function App() {
                       onClick={() => setPage("explore")}
                     >
                       Explore places
+                    </button>
+                  ) : collection === "live" &&
+                    status === "eligible" &&
+                    !!data?.summary.needsChecking ? (
+                    <button
+                      className="primary-button"
+                      onClick={() => setStatus("needs-checking")}
+                    >
+                      Review {data.summary.needsChecking} unconfirmed leads
                     </button>
                   ) : null}
                 </div>

@@ -4,6 +4,11 @@ export interface SearchHit {
   url: string;
   title: string;
   snippet: string;
+  catalog?: {
+    sourceUrl: string;
+    imageUrls: string[];
+    location: { region: string; city: string; neighborhood: string } | null;
+  };
 }
 export interface ListingTarget {
   sourceId: string;
@@ -33,7 +38,11 @@ export interface SearchProvider {
 export interface DiscoveryIO {
   acquisition?: "http" | "browser";
   enrich?: boolean;
-  catalogs?: () => AsyncIterable<{ name: string; hits: SearchHit[]; error?: string }>;
+  catalogs?: () => AsyncIterable<{
+    name: string;
+    hits: SearchHit[];
+    error?: string;
+  }>;
   provider: SearchProvider;
   page(url: string): Promise<string>;
 }

@@ -83,6 +83,29 @@ test("sample import deduplicates 15 records into 12 properties and is idempotent
   }
 });
 
+test("a 392 m² building with unknown land is not a match, and building size is not a hard maximum", async () => {
+  const base = normalizeObservation(await fixture());
+  const unconfirmed = evaluate({
+    ...base,
+    areaSqm: 392,
+    landSqm: null,
+    priceEur: 39000,
+  });
+  assert.equal(unconfirmed.eligible, false);
+  assert.equal(unconfirmed.status, "needs-checking");
+  assert.ok(unconfirmed.missingDetails.some((x) => x.includes("1,000")));
+  assert.equal(
+    evaluate({ ...base, areaSqm: 392, landSqm: 999 }).status,
+    "excluded",
+  );
+  const qualified = evaluate({ ...base, areaSqm: 392, landSqm: 1000 });
+  assert.equal(qualified.status, "eligible");
+  assert.equal(
+    qualified.reasons.find((r) => r.criterion === "space")?.points,
+    0,
+  );
+});
+
 test("hard filters accept Greece-wide land and do not turn optimal built area into a minimum", async () => {
   const base = normalizeObservation(await fixture());
   assert.equal(
