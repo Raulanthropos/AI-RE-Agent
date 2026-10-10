@@ -3,6 +3,9 @@ import { test, expect } from "@playwright/test";
 // The public OSM tile service prohibits headless bulk/bot tile use.
 // Every browser test blocks remote tiles and exercises the bundled overview.
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("estia:collection", "demo"),
+  );
   await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.abort(),
   );
@@ -175,14 +178,14 @@ test("mobile layout, map view, list view and dialogs fit a narrow touch screen",
 test("API failure is recoverable and an empty shortlist has a useful state", async ({
   page,
 }) => {
-  await page.route("**/api/listings?status=all", (route) =>
+  await page.route("**/api/listings?status=all*", (route) =>
     route.fulfill({ status: 503, body: "{}" }),
   );
   await page.goto("/");
   await expect(page.getByRole("alert")).toContainText(
     "Check that the local server is running",
   );
-  await page.unroute("**/api/listings?status=all");
+  await page.unroute("**/api/listings?status=all*");
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.getByRole("article")).toHaveCount(7);
   await page

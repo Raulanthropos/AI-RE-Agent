@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type {
+  Collection,
   Evaluation,
   Listing,
   ListingsResponse,
@@ -10,11 +11,14 @@ export type ListingStatus = "eligible" | "needs-checking" | "excluded" | "all";
 export function readListings(
   db: DatabaseSync,
   status: ListingStatus = "eligible",
+  collection: Collection = "all",
 ): ListingsResponse {
   // One query reads a consistent snapshot even if the worker commits concurrently.
   const rows = db
-    .prepare("SELECT id, payload, evaluation, scored_at FROM listings")
-    .all();
+    .prepare(
+      "SELECT id, payload, evaluation, scored_at FROM listings WHERE ? = 'all' OR (? = 'live' AND json_extract(payload, '$.discovery') IS NOT NULL) OR (? = 'demo' AND json_extract(payload, '$.discovery') IS NULL)",
+    )
+    .all(collection, collection, collection);
   const all = rows.map((row) => {
     const property = JSON.parse(row.payload as string) as Omit<
       Listing,

@@ -10,11 +10,17 @@
     "db:init": "tsx src/db/init.ts",
     "db:seed": "tsx src/worker.ts",
     "worker:start": "node dist/worker.js",
-    "test": "tsx --test --test-timeout=15000 test/*.test.ts"
+    "test": "tsx --test --test-timeout=15000 test/*.test.ts",
+    "search:once": "node --import tsx src/search-worker.ts --once",
+    "search:watch": "node --import tsx src/search-worker.ts",
+    "search:start": "node dist/search-worker.js"
   },
   "dependencies": {
     "@ai-re-agent/contracts": "0.1.0",
-    "express": "^5.1.0"
+    "cheerio": "^1.2.0",
+    "express": "^5.1.0",
+    "playwright": "^1.64.0",
+    "robots-parser": "^3.0.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",

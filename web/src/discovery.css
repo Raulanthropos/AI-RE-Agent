@@ -1,0 +1,98 @@
+.collection-picker select {
+  max-width: 160px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  min-height: 36px;
+}
+.search-activity {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  color: #666e58;
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: left;
+  padding: 3px 20px 9px;
+  flex-shrink: 0;
+}
+.search-activity span {
+  min-width: 0;
+}
+.search-activity svg {
+  flex-shrink: 0;
+}
+.search-activity:hover {
+  color: #2e3b22;
+}
+.search-panel p,
+.search-panel li {
+  line-height: 1.6;
+}
+.search-panel details {
+  margin: 20px 0;
+  font-size: 12px;
+}
+.search-panel li {
+  margin-top: 9px;
+  overflow-wrap: anywhere;
+}
+.search-panel .evidence-list dd {
+  max-width: 60%;
+  overflow-wrap: anywhere;
+}
+.discovery-caption {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #7c775e;
+  margin: 0 0 10px;
+}
+.card-footer a {
+  text-underline-offset: 3px;
+  color: #526343;
+}
+.discovery-detail {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #656c5e;
+}
+.extraction-evidence {
+  margin: 16px 0;
+  background: #f6f7f1;
+  border-radius: 12px;
+  padding: 14px;
+}
+.extraction-evidence summary {
+  cursor: pointer;
+  color: #354429;
+}
+.extraction-evidence > div {
+  padding-top: 12px;
+  overflow-wrap: anywhere;
+}
+.extraction-evidence strong {
+  text-transform: capitalize;
+  font-size: 11px;
+}
+.extraction-evidence p {
+  margin: 3px 0 8px;
+}
+.map-note {
+  max-width: calc(100% - 125px);
+}
+.photo-placeholder span {
+  font-size: 11px;
+  text-align: center;
+  padding: 0 15px;
+}
+@media (min-width: 1024px) {
+  .search-activity {
+    padding-left: 26px;
+    padding-right: 26px;
+    margin-bottom: 5px;
+    font-size: 11px;
+  }
+}

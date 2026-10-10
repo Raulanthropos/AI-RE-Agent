@@ -1,16 +1,20 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-import { databasePath } from '../config.js';
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { databasePath } from "../config.js";
 
 export function openDatabase(path = databasePath): DatabaseSync {
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+  if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
-  db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;');
-  const version = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-  if (version > 1) {
+  db.exec(
+    "PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;",
+  );
+  const version = (
+    db.prepare("PRAGMA user_version").get() as { user_version: number }
+  ).user_version;
+  if (version > 2) {
     db.close();
-    throw new Error('Database schema is newer than this application.');
+    throw new Error("Database schema is newer than this application.");
   }
   if (version === 0) {
     db.exec(`
@@ -32,6 +36,24 @@ export function openDatabase(path = databasePath): DatabaseSync {
         scored_at TEXT NOT NULL
       ) STRICT;
       PRAGMA user_version = 1;
+      COMMIT;
+    `);
+  }
+  if (version < 2) {
+    db.exec(`
+      BEGIN IMMEDIATE;
+      CREATE TABLE IF NOT EXISTS discovery_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        lease_until TEXT,
+        next_run_at TEXT,
+        heartbeat_at TEXT
+      ) STRICT;
+      INSERT OR IGNORE INTO discovery_state (id) VALUES (1);
+      CREATE TABLE IF NOT EXISTS discovery_runs (
+        id INTEGER PRIMARY KEY,
+        payload TEXT NOT NULL CHECK (json_valid(payload))
+      ) STRICT;
+      PRAGMA user_version = 2;
       COMMIT;
     `);
   }

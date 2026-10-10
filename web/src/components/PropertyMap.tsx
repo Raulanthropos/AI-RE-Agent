@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { englishMapStyle } from "../map-style";
+import "maplibre-gl/dist/maplibre-gl.css";
 import type { Listing } from "@ai-re-agent/contracts";
-import { money, photoFor, score } from "../lib";
+import { money, photoFor, score, englishListing, mapPosition } from "../lib";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -26,6 +28,8 @@ const labels: [number, number, string, string][] = [
   [41.5, 26.9, "TÜRKİYE", "neighbor"],
 ];
 export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
+  listings = useMemo(() => listings.map(englishListing), [listings]);
+  selected = useMemo(() => selected ? englishListing(selected) : null, [selected]);
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const markerLayer = useRef<L.LayerGroup | null>(null);
@@ -98,25 +102,24 @@ export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
     const customUrl = import.meta.env.VITE_MAP_TILE_URL;
     const customAttribution = import.meta.env.VITE_MAP_ATTRIBUTION;
     const useCustom = Boolean(customUrl && customAttribution);
-    const tiles = L.tileLayer(
-      useCustom ? customUrl : "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      {
-        maxZoom: 19,
-        updateWhenIdle: true,
-        keepBuffer: 1,
-        attribution: useCustom
-          ? customAttribution
-          : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      },
-    );
-    tiles.on("tileload", () => {
-      loadedTiles++;
-      if (!disposed) setTileState("ready");
-    });
-    tiles.on("tileerror", () => {
-      if (!disposed) setTileState("fallback");
-    });
-    tiles.addTo(instance);
+    if (useCustom) {
+      const tiles=L.tileLayer(customUrl,{maxZoom:19,updateWhenIdle:true,keepBuffer:1,attribution:customAttribution});
+      tiles.on("tileload",()=>{loadedTiles++;if(!disposed)setTileState("ready");});
+      tiles.on("tileerror",()=>{if(!disposed)setTileState("fallback");});
+      tiles.addTo(instance);
+    } else {
+      instance.attributionControl.addAttribution('<a href="https://openfreemap.org/">OpenFreeMap</a> · © <a href="https://openmaptiles.org/">OpenMapTiles</a> · © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>');
+      fetch(import.meta.env.VITE_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/positron", {signal:controller.signal})
+        .then(r=>{if(!r.ok)throw Error("Map style unavailable");return r.json();})
+        .then(async style=>{
+          const {maplibreGL}=await import("@maplibre/maplibre-gl-leaflet");
+          if(disposed)return;
+          const layer=maplibreGL({style:englishMapStyle(style),attributionControl:false}).addTo(instance);
+          layer.getMaplibreMap().on("load",()=>{loadedTiles++;if(!disposed)setTileState("ready");});
+          layer.getMaplibreMap().on("error",()=>{if(!disposed)setTileState("fallback");});
+        }).catch(()=>{if(!disposed)setTileState("fallback");});
+    }
+    instance.attributionControl.addAttribution('Area locations: <a href="https://www.geonames.org/">GeoNames</a> (CC BY 4.0)');
     const timeout = window.setTimeout(() => {
       if (!disposed && loadedTiles === 0) setTileState("fallback");
     }, 8000);
@@ -145,20 +148,16 @@ export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
     layer.clearLayers();
     markers.current.clear();
     for (const p of listings) {
-      if (
-        p.latitude === null ||
-        p.longitude === null ||
-        p.locationAccuracy === "unknown"
-      )
-        continue;
+      const position = mapPosition(p);
+      if (!position) continue;
       const label = document.createElement("span");
       label.textContent =
         p.priceEur === null ? "€ ?" : "€" + Math.round(p.priceEur / 1000) + "k";
-      const marker = L.marker([p.latitude, p.longitude], {
+      const marker = L.marker([position.latitude, position.longitude], {
         icon: L.divIcon({
           html: label,
           className:
-            "price-pin" + (p.status === "needs-checking" ? " pending-pin" : ""),
+            "price-pin" + (position.areaOnly ? " area-pin" : "") + (p.status === "needs-checking" ? " pending-pin" : ""),
           iconSize: [68, 36],
           iconAnchor: [34, 18],
         }),
@@ -168,7 +167,7 @@ export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
       marker.on("click", () => selectRef.current(p.id));
       const element = marker.getElement()!;
       element.setAttribute("role", "button");
-      element.setAttribute("aria-label", "Show " + p.title + " on map");
+      element.setAttribute("aria-label", "Show " + p.title + " on map" + (position.areaOnly ? " — area only" : ""));
       element.setAttribute("data-marker-id", p.id);
       element.addEventListener("keydown", (event) => {
         if (event.key === " ") {
@@ -187,15 +186,10 @@ export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
       marker.getElement()?.setAttribute("aria-pressed", String(isSelected));
       marker.setZIndexOffset(isSelected ? 1000 : 0);
     }
-    if (
-      selected?.latitude !== null &&
-      selected?.longitude !== null &&
-      selected
-    ) {
-      const instance = map.current!;
-      const position = L.latLng(selected.latitude, selected.longitude);
-      if (!instance.getBounds().pad(-0.2).contains(position))
-        instance.panTo(position, { animate: false });
+    const location=selected ? mapPosition(selected) : null;
+    if (location) {
+      const instance=map.current!;
+      instance.setView([location.latitude,location.longitude], location.areaOnly ? 12 : 13, {animate:false});
     }
   }, [selected, listings]);
 
@@ -209,7 +203,21 @@ export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
       />
       <div className="map-note">
         <Icon name="pin" size={14} />
-        <span>Approximate demo locations</span>
+        <span>
+          {listings.length === 0
+            ? "No locations in this view"
+            : listings.some((p) => p.discovery)
+              ? listings.every(
+                  (p) => !mapPosition(p),
+                )
+                ? "These sources have not provided map locations"
+                : "Source / area locations · " +
+                  listings.filter(
+                    (p) => !mapPosition(p),
+                  ).length +
+                  " without a pin"
+              : "Approximate demo locations"}
+        </span>
       </div>
       <button
         className="map-reset"
@@ -231,7 +239,16 @@ export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
           onClick={onOpen}
           aria-label={"Open details for " + selected.title}
         >
-          {photo && <img src={photo.src} alt="" />}
+          {photo && (
+            <img
+              src={photo.src}
+              alt=""
+              referrerPolicy="no-referrer"
+              onError={(event) => {
+                event.currentTarget.style.display = "none";
+              }}
+            />
+          )}
           <span>
             <small>
               {selected.neighborhood}, {selected.region}
@@ -240,6 +257,7 @@ export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
               {money(selected.priceEur)} <em>{score(selected.score)} /100</em>
             </strong>
             <span>{selected.title}</span>
+            {mapPosition(selected)?.areaOnly && <small>Area only · exact property position unknown</small>}
           </span>
           <Icon name="chevron" size={18} />
         </button>

@@ -1,6 +1,7 @@
 import type { Listing } from "@ai-re-agent/contracts";
-import { area, featureInfo, money, photoFor, score } from "../lib";
+import { area, featureInfo, money, photoFor, score, englishListing, mapPosition } from "../lib";
 import { Icon } from "./Icon";
+import { ListingImage } from "./ListingImage";
 
 export function ListingCard({
   listing,
@@ -17,6 +18,7 @@ export function ListingCard({
   onOpen: () => void;
   onMap: () => void;
 }) {
+  listing = englishListing(listing);
   const photo = photoFor(listing);
   const features = featureInfo
     .filter((f) => listing.features[f.key])
@@ -33,20 +35,14 @@ export function ListingCard({
           onClick={onOpen}
           aria-label={"View " + listing.title}
         >
-          {photo ? (
-            <img
-              src={photo.src}
-              alt={photo.alt}
-              loading="lazy"
-              width="640"
-              height="460"
-            />
-          ) : (
-            <div className="photo-placeholder">
-              <Icon name="home" size={40} />
-              <span>No photograph yet</span>
-            </div>
-          )}
+          <ListingImage
+            photo={photo}
+            fallback={
+              listing.discovery
+                ? "Photos on the source website"
+                : "No photograph yet"
+            }
+          />
         </button>
         <span className={"photo-label " + listing.status}>
           {listing.status === "needs-checking"
@@ -67,7 +63,11 @@ export function ListingCard({
         >
           <Icon name="heart" />
         </button>
-        <span className="sample-photo-label">Illustrative photo</span>
+        {photo && (
+          <span className="sample-photo-label">
+            {photo.kind === "source" ? "Source photo" : "Illustrative photo"}
+          </span>
+        )}
       </div>
       <div className="card-body">
         <div className="card-price-row">
@@ -90,7 +90,7 @@ export function ListingCard({
           {listing.title}
         </button>
         <p className="card-location">
-          {listing.neighborhood}, {listing.region}
+          {[listing.neighborhood, listing.region].filter(Boolean).join(", ")}
         </p>
         <div className="card-facts">
           <span>
@@ -120,14 +120,37 @@ export function ListingCard({
             ))}
           </div>
         )}
+        {listing.discovery && (
+          <p className="discovery-caption">
+            {listing.discovery.acquisition === "saved-page"
+              ? "Saved page · reported details"
+              : listing.discovery.basis === "search"
+                ? "Search snippet · unconfirmed"
+                : "Source page · reported details"}
+            {Date.now() - Date.parse(listing.discovery.observedAt) >
+              7 * 86400000 && " · older than 7 days"}
+          </p>
+        )}
         <div className="card-footer">
           <span>
-            {listing.sources.length}{" "}
-            {listing.sources.length === 1 ? "source" : "sources"} · demo
+            {listing.discovery ? (
+              <a
+                href={listing.sources[0]?.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {listing.sources[0]?.sourceName} ↗
+              </a>
+            ) : (
+              <>
+                {listing.sources.length}{" "}
+                {listing.sources.length === 1 ? "source" : "sources"} · demo
+              </>
+            )}
           </span>
           <button
             onClick={onMap}
-            disabled={listing.latitude === null || listing.longitude === null}
+            disabled={!mapPosition(listing)}
           >
             <Icon name="pin" size={14} />
             On map

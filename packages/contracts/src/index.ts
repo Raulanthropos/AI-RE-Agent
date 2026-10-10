@@ -18,7 +18,81 @@ export type Evidence =
   | "issues-reported"
   | "unknown";
 
+export interface DiscoveryEvidence {
+  field: string;
+  value: string;
+  excerpt: string;
+}
+export interface DiscoveryDetails {
+  acquisition?: "http" | "browser" | "saved-page";
+  basis: "search" | "page";
+  observedAt: string;
+  lastSeenAt: string;
+  lastAttemptAt: string | null;
+  pageStatus: "read" | "unavailable" | "not-requested";
+  message: string;
+  evidence: DiscoveryEvidence[];
+}
+export interface SearchRun {
+  id: number;
+  startedAt: string;
+  finishedAt: string | null;
+  status: "running" | "complete" | "partial" | "failed" | "interrupted";
+  queries: number;
+  found: number;
+  imported: number;
+  pagesRead: number;
+  issues: string[];
+}
+export interface SearchStatus {
+  intervalHours: number;
+  nextRunAt: string | null;
+  workerRunning: boolean;
+  latestRun: SearchRun | null;
+  sources: { name: string; domain: string }[];
+}
+export type Collection = "live" | "demo" | "all";
+export interface SourcePhoto {
+  url: string;
+  sourceUrl: string;
+  alt: string;
+}
+export interface SourceDetail {
+  label: string;
+  value: string;
+}
+/** Public image hosts and paths observed in supported source pages. */
+export function isSourcePhotoUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "static-cz.car.gr" &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      /^\/\d+_\d+_[a-z]+\.(?:jpe?g|png|webp)$/.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+export interface AreaLocation {
+  latitude: number; longitude: number; label: string; geonameId: string; sourceUrl: string;
+  kind: "settlement"; explanation: string;
+}
+export interface EnglishListingText {
+  title: string; description: string; city: string; neighborhood: string; region: string;
+  sourceDetails: SourceDetail[]; evidence: DiscoveryEvidence[]; engine: string; translatedAt: string;
+}
 export interface PropertyDetails {
+  english?: EnglishListingText;
+  areaLocation?: AreaLocation;
+  sourcePhotos?: SourcePhoto[];
+  sourceDetails?: SourceDetail[];
+  discovery?: DiscoveryDetails;
   title: string;
   description: string;
   countryCode: string;

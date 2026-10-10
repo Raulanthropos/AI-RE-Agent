@@ -1,5 +1,6 @@
 import type { Listing } from "@ai-re-agent/contracts";
-import { area, featureInfo, money, photoFor, score, statusLabel } from "../lib";
+import { area, featureInfo, money, score, statusLabel, englishListing } from "../lib";
+import { ListingGallery } from "./ListingGallery";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
 
@@ -16,20 +17,11 @@ export function ListingDetail({
   onSave: () => void;
   onClose: () => void;
 }) {
-  const photo = photoFor(p);
+  const original = p;
+  p = englishListing(p);
   return (
     <Modal title="A closer look" className="detail-modal" onClose={onClose}>
-      {photo && (
-        <figure className="detail-photo">
-          <img src={photo.src} alt={photo.alt} />
-          <figcaption>
-            Illustrative photo, not this property ·{" "}
-            <a href={photo.credit} target="_blank" rel="noreferrer">
-              {photo.author} / Pexels
-            </a>
-          </figcaption>
-        </figure>
-      )}
+      <ListingGallery key={p.id} listing={p} />
       <div className="detail-content">
         <div className="detail-topline">
           <span className={"status-tag " + p.status}>{statusLabel(p)}</span>
@@ -66,7 +58,24 @@ export function ListingDetail({
             <span>to town, reported</span>
           </div>
         </div>
+        {!!p.sourceDetails?.length && (
+          <section className="detail-section">
+            <h4>Property details</h4>
+            <p className="small-note">As reported by the listing.</p>
+            <dl className="evidence-list">
+              {p.sourceDetails.map((d) => (
+                <div key={d.label}>
+                  <dt>{d.label}</dt>
+                  <dd>{d.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
         <p className="description">{p.description}</p>
+        {original.english && <details className="translation-original"><summary>Machine translated to English · show original</summary><h4>{original.title}</h4><p>{original.description}</p></details>}
+        {p.discovery && !original.english && /[α-ωΑ-Ω]/u.test(p.description) && <p className="small-note">English translation is unavailable. Run the local data setup and enrichment command.</p>}
+        {p.areaLocation && p.latitude === null && <div className="area-location"><strong>Area location: {p.areaLocation.label}</strong><p>{p.areaLocation.explanation}</p><a href={p.areaLocation.sourceUrl} target="_blank" rel="noreferrer">Place data: GeoNames (CC BY 4.0)</a></div>}
         {(p.filterReasons.length > 0 || p.missingDetails.length > 0) && (
           <div className="checking-note">
             <Icon name="info" />
@@ -199,10 +208,57 @@ export function ListingDetail({
         <section className="detail-section">
           <h4>Where it came from</h4>
           <p className="small-note">
-            Demo sources use reserved .example addresses. These are not live
-            advertisements. The newest observation supplies the displayed
-            details.
+            {p.discovery
+              ? p.discovery.message
+              : "Demo sources use reserved .example addresses. These are not live advertisements. The newest observation supplies the displayed details."}
           </p>
+          {p.discovery && (
+            <div className="discovery-detail">
+              <p>
+                Details observed{" "}
+                {new Date(p.discovery.observedAt).toLocaleString("en-GB")}. Last
+                seen{" "}
+                {new Date(p.discovery.lastSeenAt).toLocaleDateString("en-GB")}.{" "}
+                Page check{" "}
+                {p.discovery.lastAttemptAt
+                  ? new Date(p.discovery.lastAttemptAt).toLocaleString("en-GB")
+                  : "not attempted"}
+                : {p.discovery.pageStatus.replace("-", " ")}.
+              </p>
+              {Date.now() - Date.parse(p.discovery.observedAt) >
+                7 * 86400000 && (
+                <p className="card-caution">
+                  These details are over a week old. Reconfirm the price and
+                  availability.
+                </p>
+              )}
+              {p.latitude === null && !p.areaLocation && (
+                <p>
+                  No source coordinates are available, so this property has no
+                  map pin.
+                </p>
+              )}
+              <details className="extraction-evidence">
+                <summary>
+                  Evidence behind the extracted details (
+                  {p.discovery.evidence.length})
+                </summary>
+                {p.discovery.evidence.length === 0 && (
+                  <p>
+                    The search result did not expose any of the scored facts.
+                  </p>
+                )}
+                {p.discovery.evidence.map((item, index) => (
+                  <div key={item.field + index}>
+                    <strong>
+                      {item.field.replace(/([A-Z])/g, " $1")} · {item.value}
+                    </strong>
+                    <p>{item.excerpt}</p>
+                  </div>
+                ))}
+              </details>
+            </div>
+          )}
           <div className="source-list">
             {p.sources.map((s) => (
               <a

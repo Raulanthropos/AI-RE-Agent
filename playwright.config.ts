@@ -13,7 +13,8 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "node server/dist/worker.js && node server/dist/index.js",
+      command:
+        "node server/dist/worker.js && node --import tsx tests/seed-discovery.ts && node server/dist/index.js",
       url: "http://127.0.0.1:3101/api/health",
       env: { DATABASE_PATH: "../.test-data/browser.sqlite", PORT: "3101" },
       reuseExistingServer: false,

@@ -1,0 +1,7 @@
+.price-pin.area-pin { border: 2px dashed #916b2d; }
+.translation-original, .area-location { margin: 18px 0; padding: 14px; background: #f4f5ef; border-radius: 14px; font-size: 13px; line-height: 1.6; }
+.translation-original summary { cursor: pointer; color: #566548; }
+.translation-original p { white-space: pre-wrap; }
+.area-location p { margin: 8px 0; }
+.area-location a { text-decoration: underline; }
+.maplibregl-map { font-family: inherit; }

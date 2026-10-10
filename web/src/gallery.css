@@ -1,0 +1,47 @@
+.gallery-frame {
+  position: relative;
+  width: 100%;
+}
+.gallery-frame .photo-placeholder {
+  min-height: 230px;
+  aspect-ratio: 640 / 360;
+}
+.gallery-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 24px;
+  background: #ffffffed;
+  padding: 4px;
+  color: #263622;
+  box-shadow: 0 3px 14px #0002;
+}
+.gallery-controls button {
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 50%;
+  font-size: 26px;
+  line-height: 1;
+}
+.gallery-controls button:hover {
+  background: #e9eddf;
+}
+.gallery-controls span {
+  font-size: 12px;
+  min-width: 32px;
+  text-align: center;
+}
+.detail-photo figcaption {
+  position: static;
+  background: #f3f5ed;
+  color: #57634d;
+  padding: 10px 18px;
+}
+.detail-section .evidence-list dd {
+  max-width: 60%;
+  overflow-wrap: anywhere;
+}

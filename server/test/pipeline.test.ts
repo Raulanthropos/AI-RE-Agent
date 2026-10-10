@@ -396,7 +396,9 @@ test("disk database survives reopening and REST serves the worker results with v
     ["excluded", 3],
     ["all", 12],
   ] as const) {
-    const response = await fetch(`${baseUrl}/api/listings?status=${status}`);
+    const response = await fetch(
+      `${baseUrl}/api/listings?status=${status}&collection=demo`,
+    );
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
     const body = (await response.json()) as ListingsResponse;
@@ -412,7 +414,7 @@ test("disk database survives reopening and REST serves the worker results with v
   assert.equal(
     (
       (await (
-        await fetch(`${baseUrl}/api/listings`)
+        await fetch(`${baseUrl}/api/listings?collection=demo`)
       ).json()) as ListingsResponse
     ).listings.length,
     7,

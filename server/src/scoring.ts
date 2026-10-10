@@ -56,6 +56,18 @@ export function evaluate(p: PropertyDetails): Evaluation {
     filterReasons.push("Access includes an unpaved road.");
   else if (p.road !== "paved")
     missingDetails.push("Confirm paved access all the way to the property.");
+  if (p.discovery?.basis === "search")
+    missingDetails.push(
+      "Search result only: confirm availability and extracted details on the source website.",
+    );
+  if (p.discovery?.basis === "page" && p.discovery.pageStatus === "unavailable")
+    missingDetails.push(
+      "Latest page refresh failed; previously reported details need reconfirming.",
+    );
+  if (p.discovery?.acquisition === "saved-page")
+    missingDetails.push(
+      "Details came from a saved page; confirm current availability.",
+    );
   if (filterReasons.length)
     return {
       eligible: false,

@@ -1,4 +1,8 @@
-import type { Feature, Listing } from "@ai-re-agent/contracts";
+import {
+  isSourcePhotoUrl,
+  type Feature,
+  type Listing,
+} from "@ai-re-agent/contracts";
 import type { IconName } from "./components/Icon";
 
 export const money = (value: number | null) =>
@@ -62,14 +66,51 @@ const photos = {
     alt: "Illustrative photograph of a traditional stone facade with plants",
   },
 };
-export function photoFor(listing: Listing) {
-  if (!listing.photo) return null;
+export interface DisplayPhoto {
+  src: string;
+  alt: string;
+  credit: string;
+  author: string;
+  kind: "source" | "illustration";
+}
+export function photosFor(listing: Listing): DisplayPhoto[] {
+  const source = (listing.sourcePhotos ?? [])
+    .filter((p) => isSourcePhotoUrl(p.url))
+    .map((p) => ({
+      src: p.url,
+      alt: p.alt,
+      credit:
+        listing.sources.find((s) => s.url === p.sourceUrl)?.url ??
+        listing.sources[0]!.url,
+      author: listing.sources[0]?.sourceName ?? "Source listing",
+      kind: "source" as const,
+    }));
+  if (source.length) return source;
+  if (!listing.photo || listing.discovery) return [];
   const photo = photos[listing.photo === "coast" ? "village" : listing.photo];
-  return {
-    ...photo,
-    src: "/images/" + photo.file + ".jpg",
-    credit: "https://www.pexels.com/photo/" + photo.id + "/",
-  };
+  return [
+    {
+      ...photo,
+      src: "/images/" + photo.file + ".jpg",
+      credit: "https://www.pexels.com/photo/" + photo.id + "/",
+      kind: "illustration",
+    },
+  ];
+}
+export function photoFor(listing: Listing): DisplayPhoto | null {
+  return photosFor(listing)[0] ?? null;
+}
+export function englishListing(p: Listing): Listing {
+  if (!p.english) return p;
+  const { engine: _engine, translatedAt: _at, evidence, ...fields } = p.english;
+  return {...p,...fields,sourcePhotos:p.sourcePhotos?.map((photo,i)=>({...photo,alt:fields.title+" — listing photograph "+(i+1)})),
+    discovery:p.discovery?{...p.discovery,evidence}:undefined};
+}
+export function mapPosition(p: Listing) {
+  if (p.latitude !== null && p.longitude !== null && p.locationAccuracy !== "unknown")
+    return {latitude:p.latitude,longitude:p.longitude,areaOnly:false,label:"Location reported by source"};
+  if (p.areaLocation) return {...p.areaLocation,areaOnly:true};
+  return null;
 }
 export const statusLabel = (listing: Listing) =>
   listing.status === "eligible"

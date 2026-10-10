@@ -4,12 +4,13 @@ import type {
   Listing,
   ListingsResponse,
 } from "@ai-re-agent/contracts";
-import { featureInfo, searchable } from "./lib";
+import { featureInfo, searchable, englishListing } from "./lib";
 import { Icon } from "./components/Icon";
 import { ListingCard } from "./components/ListingCard";
 import { ListingDetail } from "./components/ListingDetail";
 import { Modal } from "./components/Modal";
 import { PropertyMap } from "./components/PropertyMap";
+import { SearchActivity } from "./components/SearchActivity";
 
 type Page = "explore" | "saved";
 type Status = "eligible" | "needs-checking" | "excluded";
@@ -31,7 +32,28 @@ export function App() {
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [page, setPage] = useState<Page>("explore");
-  const [status, setStatus] = useState<Status>("eligible");
+  const [collection, setCollection] = useState<"live" | "demo">(() => {
+    try {
+      return localStorage.getItem("estia:collection") === "demo"
+        ? "demo"
+        : "live";
+    } catch {
+      return "live";
+    }
+  });
+  const [status, setStatus] = useState<Status>(() => {
+    try {
+      return localStorage.getItem("estia:collection") === "demo"
+        ? "eligible"
+        : "needs-checking";
+    } catch {
+      return "needs-checking";
+    }
+  });
+  const refreshListings = useCallback(
+    () => setRevision((current) => current + 1),
+    [],
+  );
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("score");
   const [features, setFeatures] = useState<Feature[]>([]);
@@ -49,7 +71,9 @@ export function App() {
     const timeout = window.setTimeout(() => controller.abort(), 10000);
     setLoading(true);
     setError("");
-    fetch("/api/listings?status=all", { signal: controller.signal })
+    fetch("/api/listings?status=all&collection=" + collection, {
+      signal: controller.signal,
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to load");
         const result = (await response.json()) as ListingsResponse;
@@ -57,13 +81,13 @@ export function App() {
           !Array.isArray(result.listings) ||
           result.policy?.version !== "greece-land-v2"
         )
-          throw new Error("Run the current sample worker");
+          throw new Error("Server response did not match the current app.");
         if (!cancelled) setData(result);
       })
       .catch(() => {
         if (!cancelled)
           setError(
-            "We couldn’t load your places. Check that the local server is running and the sample worker has completed.",
+            "We couldn’t load your places. Check that the local server is running, then try again.",
           );
       })
       .finally(() => {
@@ -75,7 +99,7 @@ export function App() {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [revision]);
+  }, [revision, collection]);
 
   useEffect(() => {
     try {
@@ -107,7 +131,7 @@ export function App() {
           (page === "saved" ? saved.includes(p.id) : p.status === status) &&
           (!needle ||
             searchable(
-              [p.title, p.city, p.neighborhood, p.region].join(" "),
+              [p.title, p.city, p.neighborhood, p.region, englishListing(p).title, englishListing(p).city, englishListing(p).neighborhood, englishListing(p).region].join(" "),
             ).includes(needle)) &&
           features.every((key) => p.features[key] === true),
       )
@@ -201,10 +225,30 @@ export function App() {
             <span className="header-divider" />
             <span>A little space. A new beginning.</span>
           </div>
-          <div className="demo-pill">
+          <label className="demo-pill collection-picker">
             <span />
-            Sample collection
-          </div>
+            <select
+              aria-label="Listing collection"
+              value={collection}
+              onChange={(event) => {
+                const next = event.target.value as "live" | "demo";
+                setCollection(next);
+                setData(null);
+                setStatus(next === "live" ? "needs-checking" : "eligible");
+                setDetailId(null);
+                setSelectedId(null);
+                clearFilters();
+                try {
+                  localStorage.setItem("estia:collection", next);
+                } catch {
+                  /* Selection still works for this visit. */
+                }
+              }}
+            >
+              <option value="live">Internet listings</option>
+              <option value="demo">Sample collection</option>
+            </select>
+          </label>
           <div className="search-row">
             <label className="search-box">
               <Icon name="search" size={20} />
@@ -286,6 +330,9 @@ export function App() {
                 />
               </button>
             </div>
+            {collection === "live" && (
+              <SearchActivity onUpdated={refreshListings} />
+            )}
             <div className="brief-chips">
               <button onClick={() => setPanel("brief")}>Up to €300k</button>
               <button onClick={() => setPanel("brief")}>1,000+ m² land</button>
@@ -382,7 +429,14 @@ export function App() {
                   <p>
                     {page === "saved" && !savedCount
                       ? "Tap the heart on any place to keep it in your shortlist."
-                      : "Try another location or fewer extras."}
+                      : collection === "live" && !data?.summary.properties
+                        ? "The daily worker has not saved any leads yet. Open the search status above to see its progress."
+                        : collection === "live" &&
+                            status === "eligible" &&
+                            !query &&
+                            !features.length
+                          ? "No listing has confirmed all essentials yet. Look in Needs checking for leads with missing details."
+                          : "Try another location or fewer extras."}
                   </p>
                   {query || features.length ? (
                     <button className="primary-button" onClick={clearFilters}>
@@ -420,7 +474,9 @@ export function App() {
                 <footer className="collection-note">
                   <Icon name="info" size={15} />
                   <p>
-                    Fictional listings, illustrative photos.
+                    {collection === "demo"
+                      ? "Fictional listings, illustrative photos."
+                      : "Real search leads. Source claims and availability need checking."}
                     <br />
                     {data.summary.observations} observations ·{" "}
                     {data.summary.duplicates} duplicates combined.
@@ -586,8 +642,9 @@ export function App() {
               where its points come from. Unknown information earns no points.
             </p>
             <p className="small-note">
-              Saved places stay in this browser. The collection is currently a
-              demonstration with fictional listings and illustrative photos.
+              Saved places stay in this browser. Internet listings come from
+              public search results and accessible source pages. The sample
+              collection contains fictional listings and illustrative photos.
             </p>
           </div>
         </Modal>

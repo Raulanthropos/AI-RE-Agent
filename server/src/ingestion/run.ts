@@ -5,7 +5,7 @@ import { normalizeObservation, propertyKey } from './normalize.js';
 import type { ListingAdapter, ListingObservation } from './types.js';
 import { readListings } from '../repository.js';
 
-export async function runImport(db: DatabaseSync, adapters: ListingAdapter[]) {
+export async function runImport(db: DatabaseSync, adapters: ListingAdapter[], options: { enrich?: boolean } = {}) {
   if (new Set(adapters.map(adapter => adapter.id)).size !== adapters.length) throw new Error('Adapter IDs must be unique.');
   const observations: ListingObservation[] = [];
   // Finish all external IO and validation before acquiring the SQLite write lock.
@@ -14,6 +14,10 @@ export async function runImport(db: DatabaseSync, adapters: ListingAdapter[]) {
       if (row.sourceId !== adapter.id) throw new Error(`Adapter ${adapter.id} returned a different source ID.`);
       observations.push(normalizeObservation(row));
     }
+  }
+  if (options.enrich) {
+    const { enrichObservations } = await import("../enrichment/index.js");
+    await enrichObservations(db, observations);
   }
   const importedAt = new Date().toISOString();
   db.exec('BEGIN IMMEDIATE');

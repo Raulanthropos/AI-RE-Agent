@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ListingObservation } from "./types.js";
+import { sourcePhotos } from "../discovery/photos.js";
 
 const clean = (value: string): string => value.trim().replace(/\s+/g, " ");
 export const normalizeText = (value: string): string =>
@@ -108,6 +109,30 @@ export function normalizeObservation(
       )
         ? input.photo
         : null,
+    ...(input.sourcePhotos
+      ? {
+          sourcePhotos: sourcePhotos(
+            input.sourcePhotos.map((p) => p.url),
+            input.sourceId,
+            input.externalId,
+            url.toString(),
+            clean(input.title),
+          ),
+        }
+      : {}),
+    ...(input.sourceDetails
+      ? {
+          sourceDetails: input.sourceDetails
+            .filter(
+              (d) => typeof d.label === "string" && typeof d.value === "string",
+            )
+            .slice(0, 30)
+            .map((d) => ({
+              label: clean(d.label).slice(0, 80),
+              value: clean(d.value).slice(0, 300),
+            })),
+        }
+      : {}),
     observedAt: new Date(input.observedAt).toISOString(),
     url: url.toString(),
   };
