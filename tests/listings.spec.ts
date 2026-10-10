@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { mockWildfire } from "./wildfire-fixture";
 
 // Block public map services: these tests exercise the bundled overview offline.
 test.beforeEach(async ({ page }) => {
+  await mockWildfire(page);
   await page.route("https://tiles.openfreemap.org/**", (route) =>
     route.abort(),
   );
@@ -28,6 +30,7 @@ test("connected map, score explanations, and source links work from the real API
       .evaluate((el) => el.getBoundingClientRect().height <= innerHeight),
   ).toBe(true);
   const first = page.getByRole("article").first();
+  await expect(first.locator(".card-fit")).toContainText("% assessed");
   const id = await first.getAttribute("data-listing-id");
   await first.getByRole("button", { name: "On map", exact: true }).click();
   await expect(page.locator('[data-marker-id="' + id + '"]')).toHaveAttribute(
@@ -35,6 +38,10 @@ test("connected map, score explanations, and source links work from the real API
     "true",
   );
   await expect(page.locator(".map-preview")).toBeVisible();
+  await expect(page.locator(".map-preview .map-fit")).toBeVisible();
+  await expect(page.locator(".map-preview .map-fit")).toContainText(
+    "% assessed",
+  );
   await page.locator(".map-preview").click();
   const detail = page.getByRole("dialog", { name: "A closer look" });
   await expect(detail).toContainText("Wildfire exposure");
@@ -46,7 +53,9 @@ test("connected map, score explanations, and source links work from the real API
     .filter({ hasText: "Around 100 m² built" })
     .locator("summary")
     .click();
-  await expect(detail).toContainText("there is no minimum building size");
+  await expect(detail).toContainText(
+    "100 m² is optimal; larger or smaller homes remain allowed",
+  );
   await page.keyboard.press("Escape");
   await expect(detail).not.toBeVisible();
   const other = page.getByRole("article").nth(2);

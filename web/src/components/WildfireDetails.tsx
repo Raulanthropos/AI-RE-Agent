@@ -44,77 +44,122 @@ export function WildfireDetails({ listing }: { listing: Listing }) {
       : "Area assessment unavailable";
 
   return (
-    <section className="detail-section wildfire-section" aria-label="Wildfire exposure">
+    <section
+      className="detail-section wildfire-section"
+      aria-label="Wildfire exposure"
+    >
       <h4>Wildfire exposure</h4>
       {!realListing ? (
-        <p className="small-note">Not assessed for fictional sample listings.</p>
+        <p className="small-note">
+          Not assessed for fictional sample listings.
+        </p>
       ) : state === "loading" ? (
-        <p className="small-note" role="status">Checking the EFFIS area assessment…</p>
+        <p className="small-note" role="status">
+          Checking the EFFIS area assessment…
+        </p>
       ) : state === "failed" ? (
         <div className="wildfire-state" role="status">
           <strong>Area assessment unavailable</strong>
-          <p>The local server could not return the assessment. Risk remains unknown.</p>
-          <button className="text-button" onClick={() => setAttempt((value) => value + 1)}>
+          <p>
+            The local server could not return the assessment. Risk remains
+            unknown.
+          </p>
+          <button
+            className="text-button"
+            onClick={() => setAttempt((value) => value + 1)}
+          >
             <Icon name="refresh" size={15} /> Try again
           </button>
         </div>
-      ) : assessment && (
-        <>
-          <div className={"wildfire-state " + (available ? assessment.riskClass ?? "" : "unknown")}>
-            <strong>{headline}</strong>
-            <p>{assessment.message}</p>
-            {assessment.location && (
-              <p className="wildfire-location">
-                <Icon name="pin" size={14} />
-                <span>
-                  {assessment.location.label}
-                  {assessment.location.accuracy === "settlement"
-                    ? " · village area, exact property position unknown"
-                    : assessment.location.accuracy === "approximate"
-                      ? " · approximate listing position"
-                      : " · source-reported property position"}
-                </span>
+      ) : (
+        assessment && (
+          <>
+            <div
+              className={
+                "wildfire-state " +
+                (available ? (assessment.riskClass ?? "") : "unknown")
+              }
+            >
+              <strong>{headline}</strong>
+              <p>{assessment.message}</p>
+              {assessment.location && (
+                <p className="wildfire-location">
+                  <Icon name="pin" size={14} />
+                  <span>
+                    {assessment.location.label}
+                    {assessment.location.accuracy === "settlement"
+                      ? " · village area, exact property position unknown"
+                      : assessment.location.accuracy === "approximate"
+                        ? " · approximate listing position"
+                        : " · source-reported property position"}
+                  </span>
+                </p>
+              )}
+            </div>
+            {assessment.stale && (
+              <p className="wildfire-stale" role="status">
+                Showing a saved assessment; the latest refresh was unavailable.
               </p>
             )}
-          </div>
-          {assessment.stale && (
-            <p className="wildfire-stale" role="status">
-              Showing a saved assessment; the latest refresh was unavailable.
+            <p className="small-note">
+              {assessment.modelYear} model · {assessment.resolutionKm} km grid.
+              This describes the surrounding area, not the individual plot or
+              today’s fire danger. It is shown separately from the fit score.
             </p>
-          )}
-          <p className="small-note">
-            {assessment.modelYear} model · {assessment.resolutionKm} km grid.
-            This describes the surrounding area, not the individual plot or
-            today’s fire danger. It is shown separately from the fit score.
-          </p>
-          {available && assessment.classShares && (
-            <details className="wildfire-method">
-              <summary>What the area classification means</summary>
-              <p>
-                Shares of the modelled area in each risk class. These percentages
-                are not the chance that this property will burn.
-              </p>
-              <dl className="evidence-list">
-                {(["high", "intermediate", "low"] as const).map((level) => (
-                  <div key={level}>
-                    <dt>{level.charAt(0).toUpperCase() + level.slice(1)} risk class</dt>
-                    <dd>{assessment.classShares![level]}%</dd>
-                  </div>
-                ))}
-              </dl>
-            </details>
-          )}
-          <div className="wildfire-sources">
-            <a href={assessment.sourceUrl} target="_blank" rel="noreferrer">{assessment.provider}: {assessment.dataset}</a>
-            <a href={assessment.methodologyUrl} target="_blank" rel="noreferrer">Read the methodology</a>
-            <a href={assessment.dailyForecastUrl} target="_blank" rel="noreferrer">Greek Civil Protection: daily fire-danger maps</a>
-          </div>
-          <p className="small-note wildfire-attribution">
-            {assessment.attribution}{" "}
-            <a href={assessment.licenseUrl} target="_blank" rel="noreferrer">Data licence</a>
-            {assessment.checkedAt && <> · Retrieved {new Date(assessment.checkedAt).toLocaleDateString("en-GB")}</>}
-          </p>
-        </>
+            {available && assessment.classShares && (
+              <details className="wildfire-method">
+                <summary>What the area classification means</summary>
+                <p>
+                  Shares of the modelled area in each risk class. These
+                  percentages are not the chance that this property will burn.
+                </p>
+                <dl className="evidence-list">
+                  {(["high", "intermediate", "low"] as const).map((level) => (
+                    <div key={level}>
+                      <dt>
+                        {level.charAt(0).toUpperCase() + level.slice(1)} risk
+                        class
+                      </dt>
+                      <dd>{assessment.classShares![level]}%</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            )}
+            <div className="wildfire-sources">
+              <a href={assessment.sourceUrl} target="_blank" rel="noreferrer">
+                {assessment.provider}: {assessment.dataset}
+              </a>
+              <a
+                href={assessment.methodologyUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Read the methodology
+              </a>
+              <a
+                href={assessment.dailyForecastUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Greek Civil Protection: daily fire-danger maps
+              </a>
+            </div>
+            <p className="small-note wildfire-attribution">
+              {assessment.attribution}{" "}
+              <a href={assessment.licenseUrl} target="_blank" rel="noreferrer">
+                Data licence
+              </a>
+              {assessment.checkedAt && (
+                <>
+                  {" "}
+                  · Retrieved{" "}
+                  {new Date(assessment.checkedAt).toLocaleDateString("en-GB")}
+                </>
+              )}
+            </p>
+          </>
+        )
       )}
     </section>
   );

@@ -128,14 +128,14 @@ Essentials: active, for sale in Greece, positive asking price ≤ €300,000, ex
 
 **Around 100 m² built is a preference, not a minimum.** Smaller houses, renovations, unknown built area and land without a house are not excluded on that basis. Permit and infrastructure evidence affects ranking and is displayed for review; it is not a claim of legal verification.
 
-| Factor              | Maximum | Fixed rule                                                                              |
-| ------------------- | ------: | --------------------------------------------------------------------------------------- |
-| Infrastructure      |      25 | Reported electricity 10, mains water 10, internet 5                                     |
-| Building permits    |      20 | Documents listed 20; merely reported 10; issues 0; unknown not assessed                 |
-| Useful extras       |      20 | Barn/stable, trees, working well, solar 4 each; sea view 2; second unit and pool 1 each |
-| Close to town       |      15 | Full at ≤10 reported driving minutes, decreasing linearly to 0 at 30                    |
-| Around 100 m² built |      10 | `10 × min(area, 100) / max(area, 100)`; 100 m² is optimal                              |
-| Within purchase budget |   10 | Full points for a known positive asking price within €300,000                         |
+| Factor                 | Maximum | Fixed rule                                                                              |
+| ---------------------- | ------: | --------------------------------------------------------------------------------------- |
+| Infrastructure         |      25 | Reported electricity 10, mains water 10, internet 5                                     |
+| Building permits       |      20 | Documents listed 20; merely reported 10; issues 0; unknown not assessed                 |
+| Useful extras          |      20 | Barn/stable, trees, working well, solar 4 each; sea view 2; second unit and pool 1 each |
+| Close to town          |      15 | Full at ≤10 reported driving minutes, decreasing linearly to 0 at 30                    |
+| Around 100 m² built    |      10 | `10 × min(area, 100) / max(area, 100)`; 100 m² is optimal                               |
+| Within purchase budget |      10 | Full points for a known positive asking price within €300,000                           |
 
 The fit score is `100 × earned points / assessed possible points`, rounded to two decimals. Unknown information is left out of both sides of that calculation; a feature explicitly reported absent is assessed and earns zero. Each reason includes `points`, the fixed `maxPoints`, and `assessedPoints`. `scoreCoverage` reports how much of the full 100-point weighting could be assessed, separately from fit. There is no fit score when nothing is assessable. Hard filters still apply independently, including the explicit plot requirement; land is not an extra score bonus.
 

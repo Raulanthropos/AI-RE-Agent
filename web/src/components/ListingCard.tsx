@@ -95,8 +95,11 @@ export function ListingCard({
                   className="score-badge"
                   onClick={onOpen}
                   aria-label={
-                    "Fit on known facts: " + score(listing.score) +
-                    " out of 100; " + listing.scoreCoverage + "% of priorities assessed"
+                    "Fit on known facts: " +
+                    score(listing.score) +
+                    " out of 100; " +
+                    listing.scoreCoverage +
+                    "% of priorities assessed"
                   }
                 >
                   <span className="score-dot" />

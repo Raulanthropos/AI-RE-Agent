@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { createExpression } from "@maplibre/maplibre-gl-style-spec";
 import { englishMapStyle } from "../web/src/map-style";
+import { mockWildfire } from "./wildfire-fixture";
 
 test("map names prefer English and transliterate Greek-only source labels", () => {
   const style = englishMapStyle({
@@ -33,6 +34,7 @@ test("map names prefer English and transliterate Greek-only source labels", () =
 });
 
 test.beforeEach(async ({ page }) => {
+  await mockWildfire(page);
   await page.addInitScript(() =>
     localStorage.setItem("estia:collection", "demo"),
   );

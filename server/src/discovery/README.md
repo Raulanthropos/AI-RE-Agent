@@ -59,7 +59,7 @@ To add or improve a portal, research its public access and markup, add a separat
 - The land minimum is fixed at 800 m². Missing plot information is a hard exclusion, not a request for the user to confirm a plot. Excluded source observations remain in SQLite so a later full-page read can supply missing land evidence. There is no arbitrary minimum-price filter; advertised asking prices remain source claims.
 - Missing search results, errors and 404s do not prove a sale and never delete old listings or silently mark them sold. Availability needs confirmation; old observations are visibly labelled after seven days.
 - Deduplication across portals remains conservative: incomplete addresses never merge merely because titles/coordinates look similar. Repeated listings within a portal update one record.
-- No wildfire, permit legality, taste or infrastructure-quality assessment is inferred.
+- Discovery does not infer wildfire safety, permit legality, taste or infrastructure quality from listing text. Details separately retrieve sourced [EFFIS area context](../wildfire/README.md); this regional model is not a parcel safety assessment and does not change the fit score.
 
 ## English presentation and area lookup
 

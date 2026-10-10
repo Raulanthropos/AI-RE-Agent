@@ -7,7 +7,10 @@ import { readListings, type ListingStatus } from "./repository.js";
 
 import { wildfireService, type WildfireOptions } from "./wildfire/service.js";
 
-export function createApp(db: DatabaseSync, options: { wildfire?: WildfireOptions } = {}) {
+export function createApp(
+  db: DatabaseSync,
+  options: { wildfire?: WildfireOptions } = {},
+) {
   const app = express();
   const assessWildfire = wildfireService(db, options.wildfire);
   app.disable("x-powered-by");
@@ -43,7 +46,9 @@ export function createApp(db: DatabaseSync, options: { wildfire?: WildfireOption
     );
   });
   app.get("/api/listings/:id/wildfire", async (req, res) => {
-    const listing = readListings(db, "all", "all").listings.find(p => p.id === req.params.id);
+    const listing = readListings(db, "all", "all").listings.find(
+      (p) => p.id === req.params.id,
+    );
     if (!listing) {
       res.status(404).json({ error: "Listing not available." });
       return;

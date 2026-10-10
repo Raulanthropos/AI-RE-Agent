@@ -3,6 +3,9 @@
   width: 100%;
 }
 .gallery-frame .photo-placeholder {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
   min-height: 230px;
   aspect-ratio: 640 / 360;
 }

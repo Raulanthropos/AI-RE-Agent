@@ -20,11 +20,11 @@ https://maps.effis.emergency.copernicus.eu/effis
 
 Use the published map configuration `/mnt/nfs/mapfiles/wfra.map`. Its [GetCapabilities document](https://maps.effis.emergency.copernicus.eu/effis?map=/mnt/nfs/mapfiles/wfra.map&service=wms&version=1.3.0&request=GetCapabilities) identifies these queryable layers:
 
-| Layer | Meaning |
-| --- | --- |
-| `high-risk-aggr-wildfire-risk` | Prevalence of the higher-risk class in the reference cell |
+| Layer                                  | Meaning                                                         |
+| -------------------------------------- | --------------------------------------------------------------- |
+| `high-risk-aggr-wildfire-risk`         | Prevalence of the higher-risk class in the reference cell       |
 | `intermediate-risk-aggr-wildfire-risk` | Prevalence of the intermediate-risk class in the reference cell |
-| `low-risk-aggr-wildfire-risk` | Prevalence of the lower-risk class in the reference cell |
+| `low-risk-aggr-wildfire-risk`          | Prevalence of the lower-risk class in the reference cell        |
 
 For each layer, use WMS `GetFeatureInfo`, `VERSION=1.1.1`, `SRS=EPSG:4326`, `INFO_FORMAT=text/html`, and the same fixed layer in `LAYERS` and `QUERY_LAYERS`. A small bounding box centred on the selected coordinates, 101 × 101 image dimensions and pixel `X=50`, `Y=50` select the centre. Longitude precedes latitude with this WMS version and CRS. The bounding box is a point-query mechanism; it does not increase the underlying model resolution or define a property boundary.
 

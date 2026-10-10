@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { mockWildfire } from "./wildfire-fixture";
 
 test.beforeEach(async ({ page }) => {
+  await mockWildfire(page);
   await page.route("https://tiles.openfreemap.org/**", (route) =>
     route.abort(),
   );
@@ -56,7 +58,7 @@ test("internet collection defaults to matches, separates unconfirmed leads and e
   const detail = page.getByRole("dialog", { name: "A closer look" });
   await expect(detail).toContainText("Search result only");
   await expect(
-    detail.getByRole("heading", { name: "Provisional score", exact: true }),
+    detail.getByRole("heading", { name: "Fit on known facts", exact: true }),
   ).toBeVisible();
   await expect(detail).toContainText("has no map pin");
   await detail.getByText("Evidence behind the extracted details").click();

@@ -200,21 +200,30 @@ export function ListingDetail({
                 </p>
               </div>
               <div className="detail-fit">
-                <strong>{score(p.score)}<small>/100</small></strong>
+                <strong>
+                  {score(p.score)}
+                  <small>/100</small>
+                </strong>
                 <span>{p.scoreCoverage}% assessed</span>
               </div>
             </div>
             <div className="score-coverage">
-              <span><strong>{p.scoreCoverage}%</strong> of weighted priorities have reported facts</span>
+              <span>
+                <strong>{p.scoreCoverage}%</strong> of weighted priorities have
+                reported facts
+              </span>
               <span className="coverage-track" aria-hidden="true">
                 <span style={{ width: p.scoreCoverage + "%" }} />
               </span>
-              <p>Fit can change as more details are found. Coverage measures the information available, not its independent verification.</p>
+              <p>
+                Fit can change as more details are found. Coverage measures the
+                information available, not its independent verification.
+              </p>
             </div>
             {p.status === "needs-checking" && (
               <p className="small-note">
-                This property still needs checking before it can be a match.
-                A high fit score does not confirm missing essentials.
+                This property still needs checking before it can be a match. A
+                high fit score does not confirm missing essentials.
               </p>
             )}
             {p.reasons.map((r) => (
@@ -225,14 +234,17 @@ export function ListingDetail({
                     {r.assessedPoints > 0 && (
                       <span className="score-track">
                         <span
-                          style={{ width: (r.points / r.assessedPoints) * 100 + "%" }}
+                          style={{
+                            width: (r.points / r.assessedPoints) * 100 + "%",
+                          }}
                         />
                       </span>
                     )}
                   </span>
                   {r.assessedPoints > 0 ? (
                     <b>
-                      {r.points.toFixed(2)} <small>/ {r.assessedPoints.toFixed(2)} assessed</small>
+                      {r.points.toFixed(2)}{" "}
+                      <small>/ {r.assessedPoints.toFixed(2)} assessed</small>
                     </b>
                   ) : (
                     <b className="unassessed-reason">Not assessed</b>

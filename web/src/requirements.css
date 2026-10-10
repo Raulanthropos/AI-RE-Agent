@@ -57,6 +57,12 @@
   display: none;
 }
 
+@media (min-width: 960px) {
+  .view-split .map-preview .map-fit {
+    display: inline-flex;
+  }
+}
+
 .detail-fit {
   flex-shrink: 0;
   display: grid;

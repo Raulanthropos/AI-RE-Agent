@@ -73,7 +73,7 @@ export function App() {
         const result = (await response.json()) as ListingsResponse;
         if (
           !Array.isArray(result.listings) ||
-          result.policy?.version !== "greece-land-v3"
+          result.policy?.version !== "greece-land-v4"
         )
           throw new Error("Server response did not match the current app.");
         const listings = result.listings.filter(
