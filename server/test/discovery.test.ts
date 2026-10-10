@@ -140,6 +140,32 @@ test("structured source facts supply price, coordinates and evaluation, not illu
   );
 });
 
+test("an explicitly reported own electricity meter is evidence, but plans and disconnection are not", () => {
+  const row = extract("Διαθέτει αυτόνομο ρολόι ΔΕΗ. Ηλιακός θερμοσίφωνας.");
+  assert.equal(row.electricity, true);
+  assert.equal(row.mainsWater, null);
+  assert.equal(row.internet, null);
+  assert.equal(
+    row.features.solar,
+    null,
+    "Solar hot water is not photovoltaic generation.",
+  );
+  assert.ok(
+    row.discovery?.evidence.some(
+      (e) => e.field === "electricity" && /ρολόι ΔΕΗ/.test(e.excerpt),
+    ),
+  );
+  for (const text of [
+    "Δεν υπάρχει αυτόνομο ρολόι ΔΕΗ.",
+    "Δυνατότητα για αυτόνομο ρολόι ΔΕΗ.",
+    "Θα τοποθετηθεί αυτόνομο ρολόι ΔΕΗ.",
+    "Απαιτείται αυτόνομο ρολόι ΔΕΗ.",
+    "Αυτόνομο ρολόι ΔΕΗ, αλλά το ρεύμα έχει διακοπεί.",
+    "Με αυτόνομο ρολόι ΔΕΗ, χωρίς ρεύμα.",
+  ])
+    assert.equal(extract(text).electricity, null, text);
+});
+
 test("Indomio reads only the matching public advertisement, including price visibility and approximate location", () => {
   const page = (visible = true, id = 7654321) =>
     '<script id="__NEXT_DATA__" type="application/json">' +

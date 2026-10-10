@@ -1,0 +1,84 @@
+.wildfire-state {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #e1e4d8;
+  border-radius: 12px;
+  background: #f6f7f2;
+  color: #626d53;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.wildfire-state.high {
+  background: #faf2e7;
+  border-color: #ebd8bd;
+  color: #835d31;
+}
+
+.wildfire-state.intermediate,
+.wildfire-state.mixed {
+  background: #f8f5e9;
+  border-color: #e7dfc4;
+  color: #786333;
+}
+
+.wildfire-state p {
+  margin: 7px 0 0;
+}
+
+.wildfire-state .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.wildfire-location {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 11px;
+}
+
+.wildfire-location svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.wildfire-stale {
+  color: #856335;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.wildfire-method {
+  margin: 14px 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #727b64;
+}
+
+.wildfire-method summary {
+  cursor: pointer;
+  padding: 5px 0;
+  color: #556447;
+}
+
+.wildfire-sources {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.wildfire-sources a,
+.wildfire-attribution a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.wildfire-attribution {
+  margin-top: 14px;
+}

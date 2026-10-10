@@ -538,7 +538,7 @@ export function App() {
                     {data.summary.observations} observations ·{" "}
                     {data.summary.duplicates} duplicates combined.
                     <br />
-                    <span>Wildfire exposure is not assessed.</span>
+                    <span>Open a listing for wildfire area context.</span>
                   </p>
                 </footer>
               )}
@@ -681,10 +681,11 @@ export function App() {
             </p>
             <h3>What needs a closer look</h3>
             <p>
-              Simple, understated style is a personal judgement. Wildfire
-              exposure needs location-specific research; it is not assessed or
-              included in the score. A high score does not establish safety or
-              legal suitability.
+              Simple, understated style is a personal judgement. Listing details
+              include EFFIS wildfire area context where a location is available.
+              Its regional model cannot establish the safety of an individual
+              plot and is shown separately from the fit score. A high fit score
+              does not establish safety or legal suitability.
             </p>
             <h3>How the fit score works</h3>
             <div className="weight-list">
@@ -697,7 +698,11 @@ export function App() {
             </div>
             <p className="small-note">
               Fixed priorities, visible reasons. Open any place to see exactly
-              where its points come from. Unknown information earns no points.
+              where its points come from. Fit is calculated only from reported
+              facts. The assessed percentage shows how much of the weighted
+              priorities is known; unknown information is not treated as a
+              failure. Hard requirements still decide whether a place can be a
+              match.
             </p>
             <p className="small-note">
               Saved places stay in this browser. Internet listings come from

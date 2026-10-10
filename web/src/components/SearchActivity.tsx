@@ -124,8 +124,8 @@ export function SearchActivity({ onUpdated }: { onUpdated: () => void }) {
             )}
             <p className="small-note">
               Missing map locations, road access, utilities and permits are
-              never inferred. A low provisional score can mean sparse
-              information.
+              never inferred. Fit uses reported facts; the assessed percentage
+              shows how much of your priorities can currently be evaluated.
             </p>
             <p className="small-note">
               Start the local app with <code>npm run dev</code>. For an

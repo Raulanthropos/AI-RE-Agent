@@ -5,8 +5,11 @@ import type { ErrorRequestHandler } from "express";
 import type { DatabaseSync } from "node:sqlite";
 import { readListings, type ListingStatus } from "./repository.js";
 
-export function createApp(db: DatabaseSync) {
+import { wildfireService, type WildfireOptions } from "./wildfire/service.js";
+
+export function createApp(db: DatabaseSync, options: { wildfire?: WildfireOptions } = {}) {
   const app = express();
+  const assessWildfire = wildfireService(db, options.wildfire);
   app.disable("x-powered-by");
   app.use("/api", (_req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
@@ -38,6 +41,14 @@ export function createApp(db: DatabaseSync) {
     res.json(
       readListings(db, status as ListingStatus, collection as Collection),
     );
+  });
+  app.get("/api/listings/:id/wildfire", async (req, res) => {
+    const listing = readListings(db, "all", "all").listings.find(p => p.id === req.params.id);
+    if (!listing) {
+      res.status(404).json({ error: "Listing not available." });
+      return;
+    }
+    res.json(await assessWildfire(listing));
   });
   app.get("/api/search/status", (_req, res) => res.json(searchStatus(db)));
   app.use((_req, res) => {

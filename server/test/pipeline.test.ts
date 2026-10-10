@@ -59,28 +59,39 @@ test("sample import deduplicates 15 records into 12 properties and is idempotent
     245_000,
     "newest source supplies canonical details",
   );
-  assert.equal(kypseli.score, 90.35);
+  assert.equal(kypseli.score, 97.62);
+  assert.equal(kypseli.scoreCoverage, 100);
   assert.ok(kypseli.sources.every((source) => !source.url.includes("utm_")));
-  assert.equal(before.listings[0]!.score, 90.35);
+  assert.equal(before.listings[0]!.score, 97.62);
   for (const listing of before.listings) {
     if (listing.status !== "excluded") {
       assert.equal(listing.reasons.length, 6);
+      const assessed = listing.reasons.reduce(
+        (sum, reason) => sum + reason.assessedPoints,
+        0,
+      );
+      const earned = listing.reasons.reduce(
+        (sum, reason) => sum + reason.points,
+        0,
+      );
+      assert.equal(listing.scoreCoverage, assessed);
       assert.equal(
         listing.score,
-        Math.round(
-          listing.reasons.reduce((sum, reason) => sum + reason.points, 0) * 100,
-        ) / 100,
+        assessed ? Math.round((earned / assessed) * 10000) / 100 : null,
       );
       assert.ok(
         listing.reasons.every(
           (reason) =>
             reason.points >= 0 &&
             reason.points <= reason.maxPoints &&
+            reason.points <= reason.assessedPoints &&
+            reason.assessedPoints <= reason.maxPoints &&
             reason.reason,
         ),
       );
     } else {
       assert.equal(listing.score, null);
+      assert.equal(listing.scoreCoverage, 0);
       assert.equal(listing.reasons.length, 0);
       assert.ok(listing.filterReasons.length > 0);
     }
@@ -113,7 +124,7 @@ test("a 392 m² building with unknown land is not a match, and building size is 
   assert.equal(qualified.status, "eligible");
   assert.equal(
     qualified.reasons.find((r) => r.criterion === "space")?.points,
-    0,
+    2.55,
   );
 });
 
@@ -183,7 +194,7 @@ test("hard filters accept Greece-wide land and do not turn optimal built area in
   assert.equal(rejected.score, null);
 });
 
-test("fixed scoring reaches 0 and 100, prefers 100 m², and exposes uncertainty", async () => {
+test("fixed scoring reaches 0 and 100 on assessed criteria, prefers 100 m², and exposes uncertainty", async () => {
   const base = normalizeObservation(await fixture());
   const allExtras = {
     secondUnit: true,
@@ -225,28 +236,33 @@ test("fixed scoring reaches 0 and 100, prefers 100 m², and exposes uncertainty"
   );
   const minimum = evaluate({
     ...base,
-    priceEur: 300_000,
+    priceEur: null,
     areaSqm: 0,
     townMinutes: 30,
-    permits: "unknown",
-    electricity: null,
-    mainsWater: null,
-    internet: null,
-    features: noExtras,
+    permits: "issues-reported",
+    electricity: false,
+    mainsWater: false,
+    internet: false,
+    features: Object.fromEntries(
+      Object.keys(noExtras).map((key) => [key, false]),
+    ) as typeof allExtras,
   });
   assert.equal(minimum.score, 0);
+  assert.equal(minimum.scoreCoverage, 90);
   const reason = (areaSqm: number | null) =>
     evaluate({ ...base, areaSqm }).reasons.find(
       (r) => r.criterion === "space",
     )!;
   assert.equal(reason(100).points, 10);
-  assert.equal(reason(80).points, reason(120).points);
-  assert.equal(reason(10000).points, 0);
+  assert.equal(reason(80).points, reason(125).points);
+  assert.equal(reason(160).points, 6.25);
+  assert.equal(reason(10000).points, 0.1);
   assert.equal(reason(null).points, 0);
+  assert.equal(reason(null).assessedPoints, 0);
   assert.match(reason(null).reason, /preference, not an exclusion/);
   assert.match(
     minimum.reasons.find((r) => r.criterion === "infrastructure")!.reason,
-    /unknown/,
+    /not available/,
   );
   assert.equal(
     evaluate({ ...base, permits: "issues-reported" }).reasons.find(
@@ -255,6 +271,59 @@ test("fixed scoring reaches 0 and 100, prefers 100 m², and exposes uncertainty"
     0,
   );
   assert.ok(evaluate(base).reasons.every((r) => r.criterion !== "fire"));
+});
+
+test("sparse Heraklion facts produce a provisional fit with explicit evidence coverage, not a score floor", async () => {
+  const base = normalizeObservation(await fixture());
+  const incomplete = {
+    ...base,
+    priceEur: 200000,
+    landSqm: 1000,
+    areaSqm: 160,
+    road: "unknown" as const,
+    permits: "unknown" as const,
+    electricity: null,
+    mainsWater: null,
+    internet: null,
+    townMinutes: null,
+    features: Object.fromEntries(
+      Object.keys(base.features).map((key) => [key, null]),
+    ) as typeof base.features,
+  };
+  const result = evaluate(incomplete);
+  assert.equal(result.status, "needs-checking");
+  assert.equal(result.score, 81.25);
+  assert.equal(result.scoreCoverage, 20);
+  assert.ok(
+    result.reasons
+      .filter((r) => !["space", "budget"].includes(r.criterion))
+      .every((r) => r.points === 0 && r.assessedPoints === 0),
+  );
+  const withMeter = evaluate({ ...incomplete, electricity: true });
+  assert.equal(withMeter.score, 87.5);
+  assert.equal(withMeter.scoreCoverage, 30);
+  assert.equal(
+    withMeter.status,
+    "needs-checking",
+    "Electricity does not establish paved access.",
+  );
+  const knownAbsent = evaluate({ ...incomplete, electricity: false });
+  assert.equal(knownAbsent.score, 54.17);
+  assert.equal(
+    knownAbsent.scoreCoverage,
+    30,
+    "Known negatives count as assessed and earn zero.",
+  );
+  const noFacts = evaluate({ ...incomplete, priceEur: null, areaSqm: null });
+  assert.equal(noFacts.score, null);
+  assert.equal(noFacts.scoreCoverage, 0);
+  assert.equal(
+    evaluate({ ...incomplete, priceEur: 300000 }).score,
+    result.score,
+  );
+  assert.equal(evaluate({ ...incomplete, priceEur: 300001 }).score, null);
+  assert.equal(evaluate({ ...incomplete, landSqm: null }).status, "excluded");
+  assert.equal(evaluate({ ...incomplete, landSqm: 799 }).status, "excluded");
 });
 
 test("Greek normalization matches conservative identities and rejects unsafe or invalid data", async () => {
@@ -519,7 +588,7 @@ test("the 800 m² gate hides missing and undersized plots from every REST view a
           status,
       )
     ).json()) as ListingsResponse;
-    assert.equal(body.policy.version, "greece-land-v3");
+    assert.equal(body.policy.version, "greece-land-v4");
     assert.equal(body.summary.properties, 2);
     assert.equal(body.summary.eligible, 2);
     assert.equal(body.summary.needsChecking, 0);

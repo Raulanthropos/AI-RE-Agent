@@ -10,6 +10,7 @@ import {
 import { ListingGallery } from "./ListingGallery";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
+import { WildfireDetails } from "./WildfireDetails";
 
 const yesNo = (value: boolean | null) =>
   value === true ? "Reported" : value === false ? "Not available" : "Unknown";
@@ -156,10 +157,6 @@ export function ListingDetail({
               <dt>Internet connection</dt>
               <dd>{yesNo(p.internet)}</dd>
             </div>
-            <div>
-              <dt>Wildfire exposure</dt>
-              <dd>Not assessed</dd>
-            </div>
           </dl>
           <p className="small-note">
             Listing claims need checking. Tree cover does not establish fire
@@ -167,6 +164,7 @@ export function ListingDetail({
             buildability.
           </p>
         </section>
+        <WildfireDetails key={p.id} listing={p} />
         <section className="detail-section">
           <h4>The little (and big) extras</h4>
           <div className="extras-grid">
@@ -195,25 +193,28 @@ export function ListingDetail({
           <section className="detail-section score-section">
             <div className="section-title">
               <div>
-                <h4>
-                  {p.status === "needs-checking"
-                    ? "Provisional score"
-                    : "Why this score?"}
-                </h4>
+                <h4>Fit on known facts</h4>
                 <p>
-                  {p.status === "needs-checking"
-                    ? "A partial assessment of reported facts, not a confirmed match."
-                    : "Fit with your brief, based on listed information."}
+                  How the reported details fit your priorities. Unknown details
+                  are left out of the calculation.
                 </p>
               </div>
-              <strong>
-                {score(p.score)}
-                <small>/100</small>
-              </strong>
+              <div className="detail-fit">
+                <strong>{score(p.score)}<small>/100</small></strong>
+                <span>{p.scoreCoverage}% assessed</span>
+              </div>
+            </div>
+            <div className="score-coverage">
+              <span><strong>{p.scoreCoverage}%</strong> of weighted priorities have reported facts</span>
+              <span className="coverage-track" aria-hidden="true">
+                <span style={{ width: p.scoreCoverage + "%" }} />
+              </span>
+              <p>Fit can change as more details are found. Coverage measures the information available, not its independent verification.</p>
             </div>
             {p.status === "needs-checking" && (
               <p className="small-note">
-                Provisional score. This property has not passed all essentials.
+                This property still needs checking before it can be a match.
+                A high fit score does not confirm missing essentials.
               </p>
             )}
             {p.reasons.map((r) => (
@@ -221,23 +222,31 @@ export function ListingDetail({
                 <summary>
                   <span>
                     {r.label}
-                    <span className="score-track">
-                      <span
-                        style={{ width: (r.points / r.maxPoints) * 100 + "%" }}
-                      />
-                    </span>
+                    {r.assessedPoints > 0 && (
+                      <span className="score-track">
+                        <span
+                          style={{ width: (r.points / r.assessedPoints) * 100 + "%" }}
+                        />
+                      </span>
+                    )}
                   </span>
-                  <b>
-                    {r.points.toFixed(2)} <small>/ {r.maxPoints}</small>
-                  </b>
+                  {r.assessedPoints > 0 ? (
+                    <b>
+                      {r.points.toFixed(2)} <small>/ {r.assessedPoints.toFixed(2)} assessed</small>
+                    </b>
+                  ) : (
+                    <b className="unassessed-reason">Not assessed</b>
+                  )}
                   <Icon name="down" size={16} />
                 </summary>
                 <p>{r.reason}</p>
               </details>
             ))}
             <p className="small-note">
-              100 m² built is an ideal, not a minimum. Unknown extras earn no
-              points. Style and wildfire exposure are not scored.
+              100 m² built is an ideal, not a minimum. The plot requirement is
+              checked before scoring. Unknown information is not scored as a
+              negative. Style and wildfire exposure are not included in this fit
+              score.
             </p>
           </section>
         )}

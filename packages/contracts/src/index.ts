@@ -102,6 +102,30 @@ export interface EnglishListingText {
   engine: string;
   translatedAt: string;
 }
+export interface WildfireAssessment {
+  status: "available" | "unavailable" | "no-location" | "not-applicable";
+  provider: string;
+  dataset: string;
+  modelYear: number;
+  resolutionKm: number;
+  sourceUrl: string;
+  methodologyUrl: string;
+  licenseUrl: string;
+  dailyForecastUrl: string;
+  attribution: string;
+  checkedAt: string | null;
+  stale: boolean;
+  location: {
+    label: string;
+    accuracy: "exact" | "approximate" | "settlement";
+    latitude: number;
+    longitude: number;
+  } | null;
+  riskClass: "high" | "intermediate" | "low" | "mixed" | null;
+  classShares: { high: number; intermediate: number; low: number } | null;
+  message: string;
+}
+
 export interface PropertyDetails {
   english?: EnglishListingText;
   areaLocation?: AreaLocation;
@@ -143,12 +167,16 @@ export interface ScoreReason {
   label: string;
   points: number;
   maxPoints: number;
+  /** Fixed weight supported by reported facts; unknown facts are not assessed. */
+  assessedPoints: number;
   reason: string;
 }
 export interface Evaluation {
   eligible: boolean;
   status: "eligible" | "needs-checking" | "excluded";
   score: number | null;
+  /** Percentage of the fixed 100-point policy for which facts are reported. */
+  scoreCoverage: number;
   filterReasons: string[];
   missingDetails: string[];
   reasons: ScoreReason[];

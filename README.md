@@ -70,9 +70,10 @@ A saved listing page can also enrich an existing record: `npm run import:page --
 - Saved places in browser localStorage, with a clear message if storage is unavailable. Only property IDs are saved; this is not account sync.
 - Visible score contributions, evidence labels, all source URLs and observation dates. Refresh reloads results after a worker run.
 - Local English translation for listing text and evidence, with the original title/description available in details. Translation changes presentation only; scoring uses the original extracted facts.
+- On-demand wildfire area context in listing details from the free Copernicus EFFIS assessment, with its date, resolution, location basis and source links. Missing or stale data is labelled explicitly.
 - Loading, empty, API retry and map fallback states.
 
-Sample listing URLs use reserved `.example` domains and are not live advertisements. Sample photos and coordinates are illustrative. Internet listings have real source URLs; map markers distinguish source coordinates from GeoNames area locations. Wildfire exposure and visual taste are not assessed.
+Sample listing URLs use reserved `.example` domains and are not live advertisements. Sample photos and coordinates are illustrative. Internet listings have real source URLs; map markers distinguish source coordinates from GeoNames area locations. Wildfire context describes a broad modelled area, not the property or an emergency forecast. Visual taste is not assessed.
 
 ## Free map setup
 
@@ -98,6 +99,7 @@ React + Leaflet ← JSON REST API ← Express (SQLite reader)
 - `server/src/ingestion/adapters/`: fictional sample sources.
 - `server/src/discovery/`: search provider, per-site public page parsers, bounded network reader and persisted daily scheduling.
 - `server/src/enrichment/`: local translation/cache and conservative GeoNames settlement lookup.
+- `server/src/wildfire/`: public EFFIS area queries, validation and SQLite caching.
 - `server/src/ingestion/normalize.ts`: normalization and conservative identity keys.
 - `server/src/ingestion/run.ts`: transactional source upserts and evaluations.
 - `server/src/scoring.ts`: fixed rules and explicit reasons.
@@ -110,6 +112,16 @@ React + Leaflet ← JSON REST API ← Express (SQLite reader)
 
 There is no web-triggered import endpoint. The UI refreshes after a new search completes; its refresh button reloads SQLite results without issuing external searches.
 
+`GET /api/listings/:id/wildfire` returns wildfire area context for a browsable listing. Express queries and caches the public EFFIS service; the browser never accesses SQLite. A listing without a usable location receives an explicit unavailable result. See [wildfire integration and source limitations](server/src/wildfire/README.md).
+
+## Wildfire area context
+
+Listing details use the European Commission Joint Research Centre's free [Copernicus EFFIS Wildfire Risk Assessment](https://forest-fire.emergency.copernicus.eu/about-effis/technical-background/wildfire-risk-assessment). The available **2022 prototype** describes long-term relative risk in reference cells approximately **12.5 km across**. Its three values report prevalence of high, intermediate and low risk classes within the cell; they are **not a percentage chance that a home will burn**. The dominant class is a compact area summary, not a parcel assessment.
+
+The lookup uses the source's coordinates when present, otherwise a labelled GeoNames settlement location. Neither establishes the parcel boundary. Source date, lookup location, retrieval time, attribution and model limitations stay visible. Results are cached in SQLite for 30 days; unsuccessful lookups are retried after one hour. Previously retrieved results can remain visible after refresh failure, explicitly marked stale. This does not make the 2022 assessment current-day data.
+
+The separate [Greek Civil Protection daily map archive](https://civilprotection.gov.gr/arxeio-imerision-xartwn) is linked for short-term regional danger forecasts. Daily conditions and long-term area context are different information. Neither automatically changes the listing's fit score or proves a property safe. The EFFIS data is used under [CC BY 4.0](https://forest-fire.emergency.copernicus.eu/about-effis/data-license), with attribution and an explanation of the app's point lookup and percentage formatting. No API key, account or paid service is required.
+
 ## Fixed criteria and scoring
 
 Essentials: active, for sale in Greece, positive asking price ≤ €300,000, explicitly stated land ≥ 800 m², and paved access. The land minimum is a fixed code policy, not a configurable preference: missing land area or a plot below 800 m² excludes the record and removes it from all API results and user browsing. Built area never substitutes for land area. Other known failures are excluded and have no score. Once the land requirement is met, unknown price or access surface produces **needs-checking**, a provisional score, and explicit missing details. No additional minimum asking price is imposed.
@@ -119,13 +131,15 @@ Essentials: active, for sale in Greece, positive asking price ≤ €300,000, ex
 | Factor              | Maximum | Fixed rule                                                                              |
 | ------------------- | ------: | --------------------------------------------------------------------------------------- |
 | Infrastructure      |      25 | Reported electricity 10, mains water 10, internet 5                                     |
-| Building permits    |      20 | Documents listed 20; merely reported 10; unknown/issues 0                               |
+| Building permits    |      20 | Documents listed 20; merely reported 10; issues 0; unknown not assessed                 |
 | Useful extras       |      20 | Barn/stable, trees, working well, solar 4 each; sea view 2; second unit and pool 1 each |
 | Close to town       |      15 | Full at ≤10 reported driving minutes, decreasing linearly to 0 at 30                    |
-| Around 100 m² built |      10 | `10 × clamp(1 − abs(area − 100) / 100)`                                                 |
-| Budget headroom     |      10 | `10 × clamp((300000 − price) / 200000)`                                                 |
+| Around 100 m² built |      10 | `10 × min(area, 100) / max(area, 100)`; 100 m² is optimal                              |
+| Within purchase budget |   10 | Full points for a known positive asking price within €300,000                         |
 
-Each factor is clamped and rounded to two decimals before summing. Unknown information earns zero points. Eligible card totals use one decimal; incomplete cards show **Unconfirmed**, with their provisional total and factor reasons available in details. Expanded factors use two decimals. A score measures fit with the brief, not probability, safety, legal status or investment quality. Purchase costs, renovation budgets, fire risk and aesthetics are not part of the score. Weights are code constants; feature filters only narrow the displayed results.
+The fit score is `100 × earned points / assessed possible points`, rounded to two decimals. Unknown information is left out of both sides of that calculation; a feature explicitly reported absent is assessed and earns zero. Each reason includes `points`, the fixed `maxPoints`, and `assessedPoints`. `scoreCoverage` reports how much of the full 100-point weighting could be assessed, separately from fit. There is no fit score when nothing is assessable. Hard filters still apply independently, including the explicit plot requirement; land is not an extra score bonus.
+
+For example, a €200,000 house with 160 m² built receives 10 budget points and 6.25 space points. If those are the only assessed preferences, its fit is **81.25/100 with 20% of the weighted criteria assessed**. That is promising fit on limited information, not confirmation of permits, utilities or paved access. A high score does not move an incomplete listing into Matches. Expanded factors retain their reasons and fixed weights. Purchase costs, renovation budgets, wildfire context and aesthetics do not affect this score. Weights are code constants; feature filters only narrow the displayed results.
 
 ## Persistence and future sources
 

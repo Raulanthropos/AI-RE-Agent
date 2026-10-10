@@ -90,17 +90,21 @@ export function ListingCard({
             </button>
           ) : (
             listing.score !== null && (
-              <button
-                className="score-badge"
-                onClick={onOpen}
-                aria-label={
-                  "Why this score: " + score(listing.score) + " out of 100"
-                }
-              >
-                <span className="score-dot" />
-                {score(listing.score)}
-                <span className="score-denominator">/100</span>
-              </button>
+              <div className="card-fit">
+                <button
+                  className="score-badge"
+                  onClick={onOpen}
+                  aria-label={
+                    "Fit on known facts: " + score(listing.score) +
+                    " out of 100; " + listing.scoreCoverage + "% of priorities assessed"
+                  }
+                >
+                  <span className="score-dot" />
+                  {score(listing.score)}
+                  <span className="score-denominator">/100 fit</span>
+                </button>
+                <small>{listing.scoreCoverage}% assessed</small>
+              </div>
             )
           )}
         </div>

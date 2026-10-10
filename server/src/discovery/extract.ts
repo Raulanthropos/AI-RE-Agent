@@ -97,7 +97,7 @@ function assertion(text: string, pattern: RegExp): string | null {
     const normalized = fold(sentence);
     if (
       pattern.test(normalized) &&
-      !/\b(no|not|without|potential|possible|planned|could|can|optional)\b|δεν |χωρισ |δυνατοτητα|δυνατον|μελλοντικ|κατασκευαστει|προβλεπεται|θα (?:εχει|γινει|διαθετει)/.test(
+      !/\b(no|not|without|potential|possible|planned|could|can|optional|disconnected)\b|δεν |χωρισ |δυνατοτητα|δυνατον|μελλοντικ|κατασκευαστει|προβλεπεται|απαιτειται|χρειαζεται|αναμενεται|προκειται να|διακοπει|κομμενο ρευμα|θα (?:εχει|γινει|διαθετει|τοποθετηθει|εγκατασταθει)/.test(
         normalized,
       )
     )
@@ -386,7 +386,7 @@ export function extractListing(input: ExtractInput): ListingObservation | null {
     permits,
     electricity: utility(
       "electricity",
-      /συνδεδεμεν[οη].{0,20}(?:ρευμα|δικτυο δεη)|ηλεκτροδοτειται|connected to (?:mains )?electricity/,
+      /συνδεδεμεν[οη].{0,20}(?:ρευμα|δικτυο δεη)|ηλεκτροδοτειται|(?:αυτονομο|ξεχωριστο|ανεξαρτητο)\s+(?:ρολοι|μετρητησ?)\s+(?:δεη|ρευματοσ)|connected to (?:mains )?electricity/,
     ),
     mainsWater: utility(
       "mainsWater",

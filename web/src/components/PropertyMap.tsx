@@ -315,11 +315,14 @@ export function PropertyMap({ listings, selected, onSelect, onOpen }: Props) {
             </small>
             <strong>
               {money(selected.priceEur)}{" "}
-              <em>
-                {selected.status === "needs-checking"
-                  ? "Unconfirmed"
-                  : score(selected.score) + " /100"}
-              </em>
+              {selected.status === "needs-checking" ? (
+                <em>Unconfirmed</em>
+              ) : selected.score !== null ? (
+                <em className="map-fit">
+                  {score(selected.score)} /100 fit
+                  <small>{selected.scoreCoverage}% assessed</small>
+                </em>
+              ) : null}
             </strong>
             <span>{selected.title}</span>
             {mapPosition(selected)?.areaOnly && (
